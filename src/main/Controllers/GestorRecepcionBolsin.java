@@ -1,7 +1,7 @@
 package main.Controllers;
 
-import main.Entities.Sesion;
-import main.Entities.Usuario;
+import main.Domain.Entities.Sesion;
+import main.Domain.Entities.Usuario;
 
 public class GestorRecepcionBolsin {
 

@@ -1,8 +1,8 @@
 import main.Controllers.GestorRecepcionBolsin;
-import main.Entities.ComisionMedica;
-import main.Entities.Empleado;
-import main.Entities.Sesion;
-import main.Entities.Usuario;
+import main.Domain.Entities.ComisionMedica;
+import main.Domain.Entities.Empleado;
+import main.Domain.Entities.Sesion;
+import main.Domain.Entities.Usuario;
 
 
 
