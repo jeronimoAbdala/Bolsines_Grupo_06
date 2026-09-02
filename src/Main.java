@@ -1,42 +1,33 @@
-import main.Controllers.GestorRecepcionBolsin;
-import main.Domain.Entities.ComisionMedica;
-import main.Domain.Entities.Empleado;
-import main.Domain.Entities.Sesion;
-import main.Domain.Entities.Usuario;
-
-
+import main.Controllers.RecepcionBolsinController;
+import main.Datasources.MemoryBolsinDatasource;
+import main.Datasources.MemoryUsuarioDatasource;
+import main.Gestores.GestorRecepcionBolsin;
+import main.Presentation.Router.AppRouter;
+import main.Presentation.Screens.PantallaRegistrarRecepcionBolsin;
+import main.Repositories.BolsinRepositoryImpl;
+import main.Repositories.UsuarioRepositoryImpl;
 
 void main() {
+    String nombreUsuarioLogueado = "jero";
 
-    ComisionMedica cm = new ComisionMedica(
-            1,
-            "Cordoba",
-            "Colon 100",
-            "cm@correo.com"
+    MemoryBolsinDatasource bolsinDatasource = new MemoryBolsinDatasource();
+    MemoryUsuarioDatasource usuarioDatasource = new MemoryUsuarioDatasource();
+
+    BolsinRepositoryImpl bolsinRepository = new BolsinRepositoryImpl(bolsinDatasource);
+    UsuarioRepositoryImpl usuarioRepository = new UsuarioRepositoryImpl(usuarioDatasource);
+
+    GestorRecepcionBolsin gestor = new GestorRecepcionBolsin(
+            nombreUsuarioLogueado,
+            bolsinRepository,
+            usuarioRepository
     );
 
-    Empleado empleado = new Empleado(
-            "Jeronimo",
-            "Abdala",
-            "mail@mail.com",
-            cm
-    );
+    RecepcionBolsinController controller = new RecepcionBolsinController(gestor);
 
-    Usuario usuario = new Usuario(
-            "jero",
-            "1234",
-            empleado
-    );
+    PantallaRegistrarRecepcionBolsin pantalla =
+            new PantallaRegistrarRecepcionBolsin(controller);
 
-    Sesion sesion = new Sesion(usuario);
+    AppRouter router = new AppRouter(pantalla);
 
-    GestorRecepcionBolsin gestor =
-            new GestorRecepcionBolsin(sesion);
-
-    Usuario usuarioLogueado =
-            gestor.buscarUsuarioLogueado();
-
-    System.out.println(
-            usuarioLogueado.getNombreUsuario()
-    );
+    router.iniciar();
 }

@@ -2,13 +2,13 @@ package main.Domain.Entities;
 
 public class DetalleRemito {
 
-    private Documentacion documentacion;
+    private final Documentation documentacion;
 
-    public DetalleRemito(Documentacion documentacion) {
+    public DetalleRemito(Documentation documentacion) {
         this.documentacion = documentacion;
     }
 
-    public Documentacion getDocumentacion() {
+    public Documentation getDocumentacion() {
         return documentacion;
     }
 }

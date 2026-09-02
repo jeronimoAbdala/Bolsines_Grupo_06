@@ -37,6 +37,18 @@ public class Bolsin {
         remitos.add(remito);
     }
 
+    public int getNumero() {
+        return numero;
+    }
+
+    public ComisionMedica getCmOrigen() {
+        return cmOrigen;
+    }
+
+    public ComisionMedica getCmDestino() {
+        return cmDestino;
+    }
+
     public ArrayList<Remito> getRemitos() {
 
         return remitos;

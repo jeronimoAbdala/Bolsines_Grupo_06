@@ -1,15 +1,15 @@
 package main.Domain.Entities;
 
-public class Documentacion<Estado> {
+public class Documentation<Estado> {
 
     private int numero;
-    private String asunto;
+    private final String asunto;
     private String descripcion;
 
     private Estado estado;
     private TipoDocumento tipoDocumento;
 
-    public Documentacion(int numero,
+    public Documentation(int numero,
                          String asunto,
                          String descripcion,
                          Estado estado,
