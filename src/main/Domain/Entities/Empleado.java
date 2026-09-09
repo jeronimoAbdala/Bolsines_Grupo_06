@@ -1,6 +1,8 @@
 package main.Domain.Entities;
 
-public class Empleado {
+import java.io.Serializable;
+
+public class Empleado implements Serializable {
 
     private String nombre;
     private String apellido;
@@ -12,6 +14,18 @@ public class Empleado {
         this.apellido = apellido;
         this.mail = mail;
         this.comisionMedica = comisionMedica;
+    }
+
+    public String getNombre() {
+        return nombre;
+    }
+
+    public String getApellido() {
+        return apellido;
+    }
+
+    public String getMail() {
+        return mail;
     }
 
     public String getNombreCompleto() {

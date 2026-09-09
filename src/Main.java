@@ -1,17 +1,31 @@
 import main.Controllers.RecepcionBolsinController;
-import main.Datasources.MemoryBolsinDatasource;
-import main.Datasources.MemoryUsuarioDatasource;
+import main.Infrastructure.Database.DatabaseManager;
+import main.Infrastructure.Datasources.SqliteBolsinDatasource;
+import main.Infrastructure.Datasources.SqliteUsuarioDatasource;
+import main.Infrastructure.Repositories.BolsinRepositoryImpl;
+import main.Infrastructure.Repositories.UsuarioRepositoryImpl;
 import main.Gestores.GestorRecepcionBolsin;
 import main.Presentation.Router.AppRouter;
-import main.Presentation.Screens.PantallaRegistrarRecepcionBolsin;
-import main.Repositories.BolsinRepositoryImpl;
-import main.Repositories.UsuarioRepositoryImpl;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 
 void main() {
     String nombreUsuarioLogueado = "jero";
 
-    MemoryBolsinDatasource bolsinDatasource = new MemoryBolsinDatasource();
-    MemoryUsuarioDatasource usuarioDatasource = new MemoryUsuarioDatasource();
+    try (Connection seedConn = DriverManager.getConnection("jdbc:sqlite:bolsines.db")) {
+        seedConn.createStatement().execute("PRAGMA foreign_keys = ON");
+        SqliteBolsinDatasource seedDatasource = new SqliteBolsinDatasource(seedConn);
+        seedDatasource.cargarDatosDePrueba();
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+
+    DatabaseManager.getInstance().inicializar();
+
+    SqliteBolsinDatasource bolsinDatasource = new SqliteBolsinDatasource();
+    SqliteUsuarioDatasource usuarioDatasource = new SqliteUsuarioDatasource();
 
     BolsinRepositoryImpl bolsinRepository = new BolsinRepositoryImpl(bolsinDatasource);
     UsuarioRepositoryImpl usuarioRepository = new UsuarioRepositoryImpl(usuarioDatasource);
@@ -24,10 +38,6 @@ void main() {
 
     RecepcionBolsinController controller = new RecepcionBolsinController(gestor);
 
-    PantallaRegistrarRecepcionBolsin pantalla =
-            new PantallaRegistrarRecepcionBolsin(controller);
-
-    AppRouter router = new AppRouter(pantalla);
-
+    AppRouter router = new AppRouter(controller);
     router.iniciar();
 }
