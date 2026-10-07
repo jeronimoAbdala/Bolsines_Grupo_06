@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.ArrayList;
 
-public class Documentation implements Serializable {
+public class Documento implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -17,8 +17,8 @@ public class Documentation implements Serializable {
     private TipoDocumento tipoDocumento;
     private ArrayList<CambioEstadoDocumentacion> cambiosEstado;
 
-    public Documentation(int numero, String asunto, String descripcion,
-                         Estado estado, TipoDocumento tipoDocumento) {
+    public Documento(int numero, String asunto, String descripcion,
+                     Estado estado, TipoDocumento tipoDocumento) {
         this.numero = numero;
         this.asunto = asunto;
         this.descripcion = descripcion;

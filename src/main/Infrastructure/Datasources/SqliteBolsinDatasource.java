@@ -3,7 +3,7 @@ package main.Infrastructure.Datasources;
 import main.Domain.Entities.Bolsin;
 import main.Domain.Entities.ComisionMedica;
 import main.Domain.Entities.DetalleRemito;
-import main.Domain.Entities.Documentation;
+import main.Domain.Entities.Documento;
 import main.Domain.Entities.Estado;
 import main.Domain.Entities.Remito;
 import main.Domain.Entities.TipoDocumento;
@@ -171,7 +171,7 @@ public class SqliteBolsinDatasource {
 
     public int obtenerSiguienteNumeroDocumentacion() {
         try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT COALESCE(MAX(numero), 0) + 1 FROM documentacion")) {
+             ResultSet rs = stmt.executeQuery("SELECT COALESCE(MAX(numero), 0) + 1 FROM documento")) {
             if (rs.next()) return rs.getInt(1);
         } catch (SQLException e) {
             e.printStackTrace();
@@ -202,7 +202,7 @@ public class SqliteBolsinDatasource {
             VALUES (?, ?, ?)
         """;
         String sqlDoc = """
-            INSERT OR REPLACE INTO documentacion
+            INSERT OR REPLACE INTO documento
             (numero, fecha_pase, asunto, descripcion, estado_ambito, estado_nombre,
              tipo_documento_nombre, tipo_documento_descripcion)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -221,7 +221,7 @@ public class SqliteBolsinDatasource {
                     pr.executeUpdate();
                 }
                 for (DetalleRemito detalle : remito.getDetalles()) {
-                    Documentation doc = detalle.getDocumentacion();
+                    Documento doc = detalle.getDocumentacion();
                     try (PreparedStatement pd = conn.prepareStatement(sqlDoc)) {
                         pd.setInt(1, doc.getNumero());
                         pd.setString(2, doc.getFechaPase().toString());
@@ -330,7 +330,7 @@ public class SqliteBolsinDatasource {
                    d.estado_nombre as doc_estado_nombre, d.tipo_documento_nombre,
                    d.tipo_documento_descripcion, d.fecha_pase
             FROM detalle_remito dr
-            JOIN documentacion d ON dr.documentacion_numero = d.numero
+            JOIN documento d ON dr.documentacion_numero = d.numero
             WHERE dr.remito_numero = ?
         """;
         try (PreparedStatement pstmt = conn.prepareStatement(sqlDetalle)) {
@@ -343,7 +343,7 @@ public class SqliteBolsinDatasource {
                     TipoDocumento tipo = new TipoDocumento(
                             rsd.getString("tipo_documento_nombre"),
                             rsd.getString("tipo_documento_descripcion"));
-                    Documentation doc = new Documentation(
+                    Documento doc = new Documento(
                             rsd.getInt("documentacion_numero"),
                             rsd.getString("asunto"),
                             rsd.getString("descripcion"),
@@ -453,7 +453,7 @@ public class SqliteBolsinDatasource {
                                int docId, String asunto, String desc,
                                Estado estadoRem, Estado estadoDoc) {
         Remito remito = new Remito(numero, fecha, estadoRem, cmOrigen, cmDestino);
-        Documentation doc = new Documentation(docId, asunto, desc, estadoDoc,
+        Documento doc = new Documento(docId, asunto, desc, estadoDoc,
                 new TipoDocumento("EXPEDIENTE", "Expediente médico"));
         remito.agregarDetalle(new DetalleRemito(doc));
         return remito;

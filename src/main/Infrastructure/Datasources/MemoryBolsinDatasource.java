@@ -1,12 +1,6 @@
 package main.Infrastructure.Datasources;
 
-import main.Domain.Entities.Bolsin;
-import main.Domain.Entities.ComisionMedica;
-import main.Domain.Entities.DetalleRemito;
-import main.Domain.Entities.Documentation;
-import main.Domain.Entities.Estado;
-import main.Domain.Entities.Remito;
-import main.Domain.Entities.TipoDocumento;
+import main.Domain.Entities.*;
 
 import java.io.*;
 import java.time.LocalDate;
@@ -88,14 +82,14 @@ public class MemoryBolsinDatasource implements Serializable {
                                ComisionMedica cmOrigen, ComisionMedica cmDestino,
                                int documentacionId, String asunto, String descripcion) {
         Remito remito = new Remito(numeroRemito, fecha, estadoEnviadoRem, cmOrigen, cmDestino);
-        Documentation documentacion = new Documentation(
+        Documento documento = new Documento(
                 documentacionId,
                 asunto,
                 descripcion,
                 estadoEnviadaDoc,
                 new TipoDocumento("EXPEDIENTE", "Expediente médico")
         );
-        remito.agregarDetalle(new DetalleRemito(documentacion));
+        remito.agregarDetalle(new DetalleRemito(documento));
         return remito;
     }
 }

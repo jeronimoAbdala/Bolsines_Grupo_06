@@ -3,7 +3,6 @@ package main.Infrastructure.Repositories;
 import main.Infrastructure.Datasources.SqliteBolsinDatasource;
 import main.Domain.Entities.Bolsin;
 import main.Domain.Entities.ComisionMedica;
-import main.Domain.Entities.Documentation;
 import main.Domain.Entities.Remito;
 import main.Domain.Repositories.BolsinRepository;
 

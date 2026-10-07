@@ -1,14 +1,6 @@
 package main.Gestores;
 
-import main.Domain.Entities.Bolsin;
-import main.Domain.Entities.ComisionMedica;
-import main.Domain.Entities.DetalleRemito;
-import main.Domain.Entities.Documentation;
-import main.Domain.Entities.Empleado;
-import main.Domain.Entities.Estado;
-import main.Domain.Entities.Remito;
-import main.Domain.Entities.TipoDocumento;
-import main.Domain.Entities.Usuario;
+import main.Domain.Entities.*;
 import main.Domain.Repositories.BolsinRepository;
 import main.Domain.Repositories.UsuarioRepository;
 
@@ -72,7 +64,7 @@ public class GestorRecepcionBolsin {
             info.append("Remito #").append(remito.getNumero()).append(" - ");
             info.append("Fecha: ").append(remito.getFecha()).append("\n");
             for (DetalleRemito detalle : remito.getDetalles()) {
-                Documentation doc = detalle.getDocumentacion();
+                Documento doc = detalle.getDocumentacion();
                 info.append("  Doc #").append(doc.getNumero()).append(": ").append(doc.getAsunto()).append("\n");
             }
         }
@@ -163,7 +155,7 @@ public class GestorRecepcionBolsin {
 
         int docNumero = obtenerSiguienteNumeroDocumentacion();
         TipoDocumento tipo = new TipoDocumento(tipoDoc, "Tipo de documento: " + tipoDoc);
-        Documentation doc = new Documentation(docNumero, asunto, descripcion, estadoDoc, tipo);
+        Documento doc = new Documento(docNumero, asunto, descripcion, estadoDoc, tipo);
 
         remito.agregarDetalle(new DetalleRemito(doc));
         bolsinRepository.agregarRemitoABolsin(bolsinNumero, remito);

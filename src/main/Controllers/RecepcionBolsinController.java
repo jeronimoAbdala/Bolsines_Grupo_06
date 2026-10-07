@@ -2,16 +2,9 @@ package main.Controllers;
 
 import main.Domain.Entities.Bolsin;
 import main.Domain.Entities.ComisionMedica;
-import main.Domain.Entities.DetalleRemito;
-import main.Domain.Entities.Documentation;
-import main.Domain.Entities.Empleado;
-import main.Domain.Entities.Estado;
-import main.Domain.Entities.Remito;
-import main.Domain.Entities.TipoDocumento;
 import main.Domain.Entities.Usuario;
 import main.Gestores.GestorRecepcionBolsin;
 
-import java.time.LocalDate;
 import java.util.List;
 
 public class RecepcionBolsinController {

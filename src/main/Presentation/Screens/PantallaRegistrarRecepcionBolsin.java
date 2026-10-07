@@ -1,11 +1,7 @@
 package main.Presentation.Screens;
 
 import main.Controllers.RecepcionBolsinController;
-import main.Domain.Entities.Bolsin;
-import main.Domain.Entities.DetalleRemito;
-import main.Domain.Entities.Documentation;
-import main.Domain.Entities.Remito;
-import main.Domain.Entities.Usuario;
+import main.Domain.Entities.*;
 
 import java.util.List;
 import java.util.Scanner;
@@ -142,7 +138,7 @@ public class PantallaRegistrarRecepcionBolsin {
         for (Remito remito : bolsin.getRemitos()) {
             System.out.println("  Remito #" + remito.getNumero() + ": RECIBIDO_ACEPTADO");
             for (DetalleRemito detalle : remito.getDetalles()) {
-                Documentation doc = detalle.getDocumentacion();
+                Documento doc = detalle.getDocumentacion();
                 System.out.println("    Documento #" + doc.getNumero() + ": RECIBIDA_ACEPTADA");
                 System.out.println("      Asunto: " + doc.getAsunto());
                 System.out.println("      Tipo: " + doc.mostrarTipoDocumentacion());

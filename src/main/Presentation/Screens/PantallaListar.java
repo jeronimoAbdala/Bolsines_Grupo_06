@@ -3,7 +3,7 @@ package main.Presentation.Screens;
 import main.Controllers.RecepcionBolsinController;
 import main.Domain.Entities.Bolsin;
 import main.Domain.Entities.DetalleRemito;
-import main.Domain.Entities.Documentation;
+import main.Domain.Entities.Documento;
 import main.Domain.Entities.Remito;
 import main.Domain.Entities.Usuario;
 
@@ -41,7 +41,7 @@ public class PantallaListar {
                 for (Remito r : b.getRemitos()) {
                     System.out.println("      Remito #" + r.getNumero() + " (" + r.getEstado().getNombre() + ")");
                     for (DetalleRemito d : r.getDetalles()) {
-                        Documentation doc = d.getDocumentacion();
+                        Documento doc = d.getDocumentacion();
                         System.out.println("        Doc #" + doc.getNumero() + ": " + doc.getAsunto()
                                 + " [" + doc.getEstado().getNombre() + "]");
                     }

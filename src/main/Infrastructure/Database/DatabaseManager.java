@@ -124,7 +124,7 @@ public class DatabaseManager {
             """);
 
             stmt.execute("""
-                CREATE TABLE IF NOT EXISTS documentacion (
+                CREATE TABLE IF NOT EXISTS documento (
                     numero INTEGER PRIMARY KEY,
                     fecha_pase TEXT,
                     asunto TEXT,

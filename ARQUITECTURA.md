@@ -26,7 +26,7 @@ SQLite embebido via `sqlite-jdbc-3.36.0.3.jar` en `lib/`.
 - Datos de prueba: `cargarDatosDePrueba()` se ejecuta solo si las tablas están vacías
 - Para reiniciar: borrar `bolsines.db`
 
-**Tablas**: `comision_medica`, `empleado`, `usuario`, `bolsin`, `remito`, `detalle_remito`, `documentacion`
+**Tablas**: `comision_medica`, `empleado`, `usuario`, `bolsin`, `remito`, `detalle_remito`, `documento`
 
 ## Entidades (alineadas al UML)
 
@@ -36,7 +36,7 @@ SQLite embebido via `sqlite-jdbc-3.36.0.3.jar` en `lib/`.
 | `Bolsin` | numero, cantRemitos, nroPrecinto | `sosEnviado()`, `esTuCM()`, `obtenerInformacionRemito()`, `crearNuevoCEO()` |
 | `Remito` | numero, fecha, cmOrigen, cmDestino | `buscarDocumentacion()`, `aceptar()` |
 | `DetalleRemito` | areaCMDestino | `aceptarDocumentacion()` |
-| `Documentation` | fechaPase, asunto | `crear()`, `sosEnviado()`, `esRecibidaYAceptada()`, `rechazar()`, `mostrarTipoDocumentacion()` |
+| `Documento` | fechaPase, asunto | `crear()`, `sosEnviado()`, `esRecibidaYAceptada()`, `rechazar()`, `mostrarTipoDocumentacion()` |
 | `CambioEstado*` | fechaHoraInicio/Fin | `sosActual()`, `setFechaHoraFin()`, `cerrar()` |
 | `ComisionMedica` | codigo, nombre, telefono | — |
 | `Sesion` | + comisionMedica | — |

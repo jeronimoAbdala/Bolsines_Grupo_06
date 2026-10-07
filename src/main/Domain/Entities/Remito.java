@@ -31,8 +31,8 @@ public class Remito implements Serializable {
         detalles.add(detalle);
     }
 
-    public ArrayList<Documentation> buscarDocumentacion() {
-        ArrayList<Documentation> docs = new ArrayList<>();
+    public ArrayList<Documento> buscarDocumentacion() {
+        ArrayList<Documento> docs = new ArrayList<>();
         for (DetalleRemito detalle : detalles) {
             docs.add(detalle.getDocumentacion());
         }

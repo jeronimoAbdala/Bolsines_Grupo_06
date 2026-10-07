@@ -19,4 +19,6 @@ public interface UsuarioRepository {
     List<ComisionMedica> obtenerComisionesMedicas();
 
     ComisionMedica crearComisionMedica(int codigo, String nombre, String direccion, String email, String telefono);
+
+
 }
