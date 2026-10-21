@@ -1,14 +1,16 @@
 # Bolsines — Clean Architecture + SQLite
 
+> El proyecto está separado en `backend/` (API REST con Spring Boot) y `frontend/` (React + TypeScript). Ver [README.md](README.md) para levantarlo.
+
 ## Arquitectura
 
 ```
-Presentation → Controller → Service (Gestor) → Repository → Datasource → Entities
+Frontend (React) ──HTTP──▶ Presentation (REST) → Controller → Service (Gestor) → Repository → Datasource → Entities
 ```
 
 | Capa | Paquete | Rol |
 |---|---|---|
-| **Presentation** | `Presentation/Screens`, `Presentation/Router` | UI por consola. Solo muestra y captura input. |
+| **Presentation** | `Presentation/Api` | Endpoints REST (`@RestController`) y DTOs. Traducen HTTP ↔ controller, sin lógica de negocio. |
 | **Controller** | `Controllers` | Intermediario delgado. Delega todo al gestor. |
 | **Service** | `Gestores` | Lógica de negocio del caso de uso. |
 | **Repository** | `Domain/Repositories` (interfaces) | Contratos de acceso a datos. |
@@ -19,9 +21,9 @@ Presentation → Controller → Service (Gestor) → Repository → Datasource �
 
 ## Persistencia
 
-SQLite embebido via `sqlite-jdbc-3.36.0.3.jar` en `lib/`.
+SQLite embebido via `org.xerial:sqlite-jdbc` (dependencia Maven).
 
-- DB: `bolsines.db` (raíz del proyecto)
+- DB: `backend/bolsines.db` (relativa al directorio desde donde se levanta el backend)
 - Schema creado automáticamente en `DatabaseManager.inicializar()`
 - Datos de prueba: `cargarDatosDePrueba()` se ejecuta solo si las tablas están vacías
 - Para reiniciar: borrar `bolsines.db`
@@ -43,10 +45,10 @@ SQLite embebido via `sqlite-jdbc-3.36.0.3.jar` en `lib/`.
 
 ## Caso de uso: Registrar Recepción
 
-1. `Pantalla` muestra usuario logueado y CM
-2. Lista bolsines ENVIADO hacia la CM del usuario
-3. Usuario selecciona uno → se muestra info de remitos (origen, precinto, docs)
-4. Opción Recibir/Rechazar + confirmación S/N
+1. `GET /api/recepcion/sesion` → la pantalla muestra usuario logueado y CM
+2. `GET /api/recepcion/bolsines` → lista bolsines ENVIADO hacia la CM del usuario
+3. Usuario selecciona uno → `GET /api/recepcion/bolsines/{n}` → info de remitos (origen, precinto, docs)
+4. Opción Recibir/Rechazar + modal de confirmación → `POST /api/recepcion/bolsines/{n}/recibir`
 5. Gestor cambia estados en cascada: Bolsín→RECIBIDO, Remitos→RECIBIDO_ACEPTADO, Docs→RECIBIDA_ACEPTADA
 6. Persiste a SQLite
 7. Al siguiente reinicio solo aparecen bolsines pendientes
@@ -54,31 +56,30 @@ SQLite embebido via `sqlite-jdbc-3.36.0.3.jar` en `lib/`.
 ## Compilar y ejecutar
 
 ```bash
-# Compilar
-javac -cp lib/sqlite-jdbc-3.36.0.3.jar -d out (Get-ChildItem -Recurse -Filter *.java src).FullName
-
-# Ejecutar
-java -cp "out;lib/sqlite-jdbc-3.36.0.3.jar" Main
-
-# Reiniciar datos
-del bolsines.db
+cd backend && mvn spring-boot:run      # API en http://localhost:8080
+cd frontend && npm install && npm run dev   # UI en http://localhost:5173
 ```
 
 ## Estructura
 
 ```
-src/
-├── Main.java                          (composition root)
-└── main/
+backend/
+├── pom.xml
+├── bolsines.db
+└── src/main/java/main/
+    ├── BolsinesApplication.java       (arranque Spring Boot)
+    ├── Config/AppConfig.java          (composition root: arma las capas)
+    ├── Presentation/Api/              (RestControllers + Dto)
+    ├── Controllers/                   (intermediario)
+    ├── Gestores/                      (caso de uso)
     ├── Domain/Entities/               (12 entidades UML)
     ├── Domain/Repositories/           (interfaces)
-    ├── Infrastructure/
-    │   ├── Database/DatabaseManager   (conexión SQLite)
-    │   ├── Datasources/              (Sqlite*Datasource)
-    │   └── Repositories/             (RepositoryImpl)
-    ├── Gestores/                      (caso de uso)
-    ├── Controllers/                   (intermediario)
-    └── Presentation/                  (screens + router)
-lib/
-└── sqlite-jdbc-3.36.0.3.jar
+    └── Infrastructure/                (DatabaseManager, Datasources, RepositoryImpl)
+frontend/
+└── src/
+    ├── features/                      (recepcion, bolsines, comisiones, usuarios, inicio)
+    │   └── <feature>/{components,hooks,services,types}
+    ├── shared/                        (componentes UI, axios, queryClient, utils)
+    ├── router/                        (rutas)
+    └── config/                        (variables de entorno)
 ```
