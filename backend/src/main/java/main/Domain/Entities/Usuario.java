@@ -15,6 +15,9 @@ public class Usuario implements Serializable {
         this.password = password;
         this.empleado = empleado;
         this.fechaAlta = LocalDate.now();
+        if (empleado != null) {
+            empleado.setUsuario(this);
+        }
     }
 
     public String getNombreUsuario() {

@@ -12,10 +12,11 @@ public class CambioEstadoDocumentacion implements Serializable {
     private Estado estado;
     private Empleado empleado;
 
-    public CambioEstadoDocumentacion(Estado estado, Empleado empleado) {
+    // new() del diagrama: lo crea la Documentacion en crearNuevoCE()
+    public CambioEstadoDocumentacion(Estado estado, LocalDateTime fechaHoraInicio, Empleado empleado) {
         this.estado = estado;
+        this.fechaHoraInicio = fechaHoraInicio;
         this.empleado = empleado;
-        this.fechaHoraInicio = LocalDateTime.now();
     }
 
     public boolean sosActual() {
@@ -24,10 +25,6 @@ public class CambioEstadoDocumentacion implements Serializable {
 
     public void setFechaHoraFin(LocalDateTime fechaHoraFin) {
         this.fechaHoraFin = fechaHoraFin;
-    }
-
-    public void cerrar() {
-        this.fechaHoraFin = LocalDateTime.now();
     }
 
     public LocalDateTime getFechaHoraInicio() {

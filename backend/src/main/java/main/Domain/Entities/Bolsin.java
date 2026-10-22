@@ -2,7 +2,9 @@ package main.Domain.Entities;
 
 import java.io.Serializable;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
 
 public class Bolsin implements Serializable {
 
@@ -14,23 +16,19 @@ public class Bolsin implements Serializable {
     private int cantRemitos;
     private double peso;
 
-    private Estado estado;
-
     private ComisionMedica cmOrigen;
     private ComisionMedica cmDestino;
 
     private ArrayList<Remito> remitos;
+    // El estado del bolsin no es un atributo: es el del cambio de estado actual
     private ArrayList<CambioEstadoBolsin> cambiosEstado;
 
-    public Bolsin(int numero,
-                  ComisionMedica cmOrigen,
-                  ComisionMedica cmDestino,
-                  Estado estado) {
+    public Bolsin(int numero, LocalDate fechaGeneracion,
+                  ComisionMedica cmOrigen, ComisionMedica cmDestino) {
         this.numero = numero;
+        this.fechaGeneracion = fechaGeneracion;
         this.cmOrigen = cmOrigen;
         this.cmDestino = cmDestino;
-        this.estado = estado;
-        this.fechaGeneracion = LocalDate.now();
         this.remitos = new ArrayList<>();
         this.cambiosEstado = new ArrayList<>();
         this.cantRemitos = 0;
@@ -45,8 +43,10 @@ public class Bolsin implements Serializable {
         cambiosEstado.add(cambio);
     }
 
+    // sosEnviado() -> *sosActual() -> actual.sosEnviado() -> estado.esEnviado()
     public boolean sosEnviado() {
-        return estado != null && estado.esEnviado() && estado.esAmbitoBolsin();
+        CambioEstadoBolsin actual = buscarCEActual();
+        return actual != null && actual.sosEnviado();
     }
 
     public boolean esTuCM(ComisionMedica cm) {
@@ -57,22 +57,63 @@ public class Bolsin implements Serializable {
         return this.numero == numero;
     }
 
-    public String mostrarRecibido() {
-        return "Bolsin #" + numero + " - Estado: " + estado.getNombre();
+    public ComisionMedica getCMOrigen() {
+        return cmOrigen;
     }
 
-    public String obtenerInformacionRemito() {
-        StringBuilder info = new StringBuilder();
+    public String getNroPrecinto() {
+        return nroPrecinto;
+    }
+
+    /**
+     * Por cada remito pide su numero y su documentacion (buscarDocumentacion),
+     * que a su vez se la pide a cada DetalleRemito.
+     */
+    public List<String> obtenerInformacionRemito() {
+        List<String> informacion = new ArrayList<>();
         for (Remito remito : remitos) {
-            info.append("Remito #").append(remito.getNumero()).append("\n");
+            informacion.add("Remito #" + remito.getNumero() + ": " + String.join(", ", remito.buscarDocumentacion()));
         }
-        return info.toString();
+        return informacion;
     }
 
-    public CambioEstadoBolsin crearNuevoCEO(Estado nuevoEstado, Empleado empleado) {
-        CambioEstadoBolsin cambio = new CambioEstadoBolsin(nuevoEstado, empleado);
-        agregarCambioEstado(cambio);
-        return cambio;
+    /**
+     * Registra la recepcion: cierra el cambio de estado actual, crea el nuevo
+     * (Recibido en CM destino) y le pide a cada remito que se acepte.
+     * Se llama mostrarRecibido() porque asi figura en el diagrama de secuencia.
+     */
+    public void mostrarRecibido(Estado estadoRecibidoEnCMDestino, Estado estadoRecibidoYAceptado,
+                                Estado estadoRecibidaYAceptada, LocalDateTime fechaHoraActual,
+                                Empleado empleado) {
+        CambioEstadoBolsin actual = buscarCEActual();
+        if (actual != null) {
+            actual.setFechaHoraFin(fechaHoraActual);
+        }
+        crearNuevoCE(estadoRecibidoEnCMDestino, fechaHoraActual, empleado);
+
+        for (Remito remito : remitos) {
+            remito.aceptar(estadoRecibidoYAceptado, estadoRecibidaYAceptada, fechaHoraActual, empleado);
+        }
+    }
+
+    public CambioEstadoBolsin crearNuevoCE(Estado estado, LocalDateTime fechaHoraInicio, Empleado empleado) {
+        CambioEstadoBolsin nuevo = new CambioEstadoBolsin(estado, fechaHoraInicio, empleado);
+        agregarCambioEstado(nuevo);
+        return nuevo;
+    }
+
+    private CambioEstadoBolsin buscarCEActual() {
+        for (CambioEstadoBolsin cambio : cambiosEstado) {
+            if (cambio.sosActual()) {
+                return cambio;
+            }
+        }
+        return null;
+    }
+
+    public Estado getEstadoActual() {
+        CambioEstadoBolsin actual = buscarCEActual();
+        return actual != null ? actual.getEstado() : null;
     }
 
     public int getNumero() {
@@ -81,10 +122,6 @@ public class Bolsin implements Serializable {
 
     public LocalDate getFechaGeneracion() {
         return fechaGeneracion;
-    }
-
-    public String getNroPrecinto() {
-        return nroPrecinto;
     }
 
     public void setNroPrecinto(String nroPrecinto) {
@@ -117,13 +154,5 @@ public class Bolsin implements Serializable {
 
     public ArrayList<CambioEstadoBolsin> getCambiosEstado() {
         return cambiosEstado;
-    }
-
-    public Estado getEstado() {
-        return estado;
-    }
-
-    public void setEstado(Estado estado) {
-        this.estado = estado;
     }
 }

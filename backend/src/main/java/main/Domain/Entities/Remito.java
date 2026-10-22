@@ -2,7 +2,9 @@ package main.Domain.Entities;
 
 import java.io.Serializable;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
 
 public class Remito implements Serializable {
 
@@ -31,17 +33,23 @@ public class Remito implements Serializable {
         detalles.add(detalle);
     }
 
-    public ArrayList<Documento> buscarDocumentacion() {
-        ArrayList<Documento> docs = new ArrayList<>();
+    // Por cada detalle: getDocumentacion() -> getAsunto() y mostrarTipoDocumentacion()
+    public List<String> buscarDocumentacion() {
+        List<String> documentacion = new ArrayList<>();
         for (DetalleRemito detalle : detalles) {
-            docs.add(detalle.getDocumentacion());
+            Documento documento = detalle.getDocumentacion();
+            documentacion.add(documento.getAsunto() + " (" + documento.mostrarTipoDocumentacion() + ")");
         }
-        return docs;
+        return documentacion;
     }
 
-    public void aceptar(Empleado empleado) {
-        Estado estadoAceptado = new Estado("REM", "RECIBIDO_ACEPTADO", "Remito recibido y aceptado");
-        this.estado = estadoAceptado;
+    // El remito pasa a Recibido y Aceptado y le pide a cada detalle que acepte su documentacion
+    public void aceptar(Estado estadoRecibidoYAceptado, Estado estadoRecibidaYAceptada,
+                        LocalDateTime fechaHoraActual, Empleado empleado) {
+        this.estado = estadoRecibidoYAceptado;
+        for (DetalleRemito detalle : detalles) {
+            detalle.aceptarDocumentacion(estadoRecibidaYAceptada, fechaHoraActual, empleado);
+        }
     }
 
     public int getNumero() {
@@ -66,9 +74,5 @@ public class Remito implements Serializable {
 
     public Estado getEstado() {
         return estado;
-    }
-
-    public void setEstado(Estado estado) {
-        this.estado = estado;
     }
 }

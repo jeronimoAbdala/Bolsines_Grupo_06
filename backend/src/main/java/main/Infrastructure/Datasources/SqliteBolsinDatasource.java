@@ -1,9 +1,12 @@
 package main.Infrastructure.Datasources;
 
 import main.Domain.Entities.Bolsin;
+import main.Domain.Entities.CambioEstadoBolsin;
+import main.Domain.Entities.CambioEstadoDocumentacion;
 import main.Domain.Entities.ComisionMedica;
 import main.Domain.Entities.DetalleRemito;
 import main.Domain.Entities.Documento;
+import main.Domain.Entities.Empleado;
 import main.Domain.Entities.Estado;
 import main.Domain.Entities.Remito;
 import main.Domain.Entities.TipoDocumento;
@@ -15,6 +18,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,22 +39,6 @@ public class SqliteBolsinDatasource {
         String sql = "SELECT * FROM bolsin";
         try (Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
-            while (rs.next()) {
-                Bolsin b = mapearBolsin(rs);
-                if (b != null) bolsines.add(b);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return bolsines;
-    }
-
-    public List<Bolsin> obtenerEnviadosHacia(ComisionMedica cmDestino) {
-        List<Bolsin> bolsines = new ArrayList<>();
-        String sql = "SELECT * FROM bolsin WHERE cm_destino_codigo = ? AND estado_nombre = 'ENVIADO'";
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, cmDestino.getCodigo());
-            ResultSet rs = pstmt.executeQuery();
             while (rs.next()) {
                 Bolsin b = mapearBolsin(rs);
                 if (b != null) bolsines.add(b);
@@ -88,11 +76,13 @@ public class SqliteBolsinDatasource {
             pstmt.setString(3, bolsin.getNroPrecinto());
             pstmt.setInt(4, bolsin.getCantRemitos());
             pstmt.setDouble(5, bolsin.getPeso());
-            pstmt.setString(6, bolsin.getEstado().getAmbito());
-            pstmt.setString(7, bolsin.getEstado().getNombre());
+            Estado estadoActual = bolsin.getEstadoActual();
+            pstmt.setString(6, estadoActual != null ? estadoActual.getAmbito() : null);
+            pstmt.setString(7, estadoActual != null ? estadoActual.getNombre() : null);
             pstmt.setInt(8, bolsin.getCmOrigen().getCodigo());
             pstmt.setInt(9, bolsin.getCmDestino().getCodigo());
             pstmt.executeUpdate();
+            guardarCambiosEstado(bolsin);
             guardarRemitos(bolsin);
         } catch (SQLException e) {
             e.printStackTrace();
@@ -101,8 +91,8 @@ public class SqliteBolsinDatasource {
 
     public void crearBolsin(int numero, String precinto, double peso,
                             ComisionMedica cmOrigen, ComisionMedica cmDestino) {
-        Estado estado = new Estado("BOL", "ENVIADO", "Bolsín enviado");
-        Bolsin bolsin = new Bolsin(numero, cmOrigen, cmDestino, estado);
+        Bolsin bolsin = new Bolsin(numero, LocalDate.now(), cmOrigen, cmDestino);
+        bolsin.crearNuevoCE(buscarEstado("BOL", "ENVIADO"), LocalDateTime.now(), null);
         bolsin.setNroPrecinto(precinto);
         bolsin.setPeso(peso);
         guardar(bolsin);
@@ -227,12 +217,14 @@ public class SqliteBolsinDatasource {
                         pd.setString(2, doc.getFechaPase().toString());
                         pd.setString(3, doc.getAsunto());
                         pd.setString(4, doc.getDescripcion());
-                        pd.setString(5, doc.getEstado().getAmbito());
-                        pd.setString(6, doc.getEstado().getNombre());
+                        Estado estadoDoc = doc.getEstadoActual();
+                        pd.setString(5, estadoDoc != null ? estadoDoc.getAmbito() : null);
+                        pd.setString(6, estadoDoc != null ? estadoDoc.getNombre() : null);
                         pd.setString(7, doc.getTipoDocumento().getNombre());
                         pd.setString(8, doc.getTipoDocumento().getDescripcion());
                         pd.executeUpdate();
                     }
+                    guardarCambiosEstado(doc);
                     try (PreparedStatement pdet = conn.prepareStatement(sqlDetalle)) {
                         pdet.setString(1, detalle.getAreaCMDestino());
                         pdet.setInt(2, remito.getNumero());
@@ -250,7 +242,8 @@ public class SqliteBolsinDatasource {
         int numero = rs.getInt("numero");
         String estadoAmbito = rs.getString("estado_ambito");
         String estadoNombre = rs.getString("estado_nombre");
-        Estado estado = new Estado(estadoAmbito, estadoNombre, "");
+        String fecha = rs.getString("fecha_generacion");
+        LocalDate fechaGeneracion = fecha != null ? LocalDate.parse(fecha) : LocalDate.now();
 
         int cmOrigenCodigo = rs.getInt("cm_origen_codigo");
         int cmDestinoCodigo = rs.getInt("cm_destino_codigo");
@@ -259,7 +252,12 @@ public class SqliteBolsinDatasource {
 
         if (cmOrigen == null || cmDestino == null) return null;
 
-        Bolsin bolsin = new Bolsin(numero, cmOrigen, cmDestino, estado);
+        Bolsin bolsin = new Bolsin(numero, fechaGeneracion, cmOrigen, cmDestino);
+        cargarCambiosEstado(bolsin);
+        if (bolsin.getCambiosEstado().isEmpty() && estadoNombre != null) {
+            // Bases creadas antes de guardar los cambios de estado: se toma el estado de la tabla bolsin
+            bolsin.crearNuevoCE(buscarEstado(estadoAmbito, estadoNombre), fechaGeneracion.atStartOfDay(), null);
+        }
         String precinto = rs.getString("nro_precinto");
         if (precinto != null) bolsin.setNroPrecinto(precinto);
         bolsin.setPeso(rs.getDouble("peso"));
@@ -314,7 +312,7 @@ public class SqliteBolsinDatasource {
         LocalDate fecha = LocalDate.parse(rs.getString("fecha"));
         String estadoAmbito = rs.getString("estado_ambito");
         String estadoNombre = rs.getString("estado_nombre");
-        Estado estado = new Estado(estadoAmbito, estadoNombre, "");
+        Estado estado = buscarEstado(estadoAmbito, estadoNombre);
 
         int cmOrigenCodigo = rs.getInt("cm_origen_codigo");
         int cmDestinoCodigo = rs.getInt("cm_destino_codigo");
@@ -337,9 +335,6 @@ public class SqliteBolsinDatasource {
             pstmt.setInt(1, numero);
             try (ResultSet rsd = pstmt.executeQuery()) {
                 while (rsd.next()) {
-                    Estado docEstado = new Estado(
-                            rsd.getString("doc_estado_ambito"),
-                            rsd.getString("doc_estado_nombre"), "");
                     TipoDocumento tipo = new TipoDocumento(
                             rsd.getString("tipo_documento_nombre"),
                             rsd.getString("tipo_documento_descripcion"));
@@ -347,7 +342,12 @@ public class SqliteBolsinDatasource {
                             rsd.getInt("documentacion_numero"),
                             rsd.getString("asunto"),
                             rsd.getString("descripcion"),
-                            docEstado, tipo);
+                            tipo);
+                    cargarCambiosEstado(doc);
+                    if (doc.getCambiosEstado().isEmpty() && rsd.getString("doc_estado_nombre") != null) {
+                        doc.crearNuevoCE(buscarEstado(rsd.getString("doc_estado_ambito"), rsd.getString("doc_estado_nombre")),
+                                LocalDateTime.now(), null);
+                    }
                     remito.agregarDetalle(new DetalleRemito(doc, rsd.getString("area_cm_destino")));
                 }
             }
@@ -356,6 +356,145 @@ public class SqliteBolsinDatasource {
         }
 
         return remito;
+    }
+
+    private Estado buscarEstado(String ambito, String nombre) {
+        String sql = "SELECT * FROM estado WHERE ambito = ? AND nombre = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, ambito);
+            pstmt.setString(2, nombre);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return new Estado(rs.getString("ambito"), rs.getString("nombre"), rs.getString("descripcion"));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return new Estado(ambito, nombre, "");
+    }
+
+    private void guardarCambiosEstado(Bolsin bolsin) throws SQLException {
+        try (PreparedStatement del = conn.prepareStatement("DELETE FROM cambio_estado_bolsin WHERE bolsin_numero = ?")) {
+            del.setInt(1, bolsin.getNumero());
+            del.executeUpdate();
+        }
+        String sql = """
+            INSERT INTO cambio_estado_bolsin
+            (bolsin_numero, fecha_hora_inicio, fecha_hora_fin, estado_ambito, estado_nombre, empleado_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """;
+        for (CambioEstadoBolsin cambio : bolsin.getCambiosEstado()) {
+            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setInt(1, bolsin.getNumero());
+                setearCambioEstado(pstmt, cambio.getFechaHoraInicio(), cambio.getFechaHoraFin(),
+                        cambio.getEstado(), cambio.getEmpleado());
+                pstmt.executeUpdate();
+            }
+        }
+    }
+
+    private void guardarCambiosEstado(Documento doc) throws SQLException {
+        try (PreparedStatement del = conn.prepareStatement("DELETE FROM cambio_estado_documentacion WHERE documentacion_numero = ?")) {
+            del.setInt(1, doc.getNumero());
+            del.executeUpdate();
+        }
+        String sql = """
+            INSERT INTO cambio_estado_documentacion
+            (documentacion_numero, fecha_hora_inicio, fecha_hora_fin, estado_ambito, estado_nombre, empleado_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """;
+        for (CambioEstadoDocumentacion cambio : doc.getCambiosEstado()) {
+            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setInt(1, doc.getNumero());
+                setearCambioEstado(pstmt, cambio.getFechaHoraInicio(), cambio.getFechaHoraFin(),
+                        cambio.getEstado(), cambio.getEmpleado());
+                pstmt.executeUpdate();
+            }
+        }
+    }
+
+    private void setearCambioEstado(PreparedStatement pstmt, LocalDateTime inicio, LocalDateTime fin,
+                                    Estado estado, Empleado empleado) throws SQLException {
+        pstmt.setString(2, inicio.toString());
+        pstmt.setString(3, fin != null ? fin.toString() : null);
+        pstmt.setString(4, estado.getAmbito());
+        pstmt.setString(5, estado.getNombre());
+        Integer empleadoId = buscarEmpleadoId(empleado);
+        if (empleadoId != null) {
+            pstmt.setInt(6, empleadoId);
+        } else {
+            pstmt.setNull(6, java.sql.Types.INTEGER);
+        }
+    }
+
+    private Integer buscarEmpleadoId(Empleado empleado) throws SQLException {
+        if (empleado == null) return null;
+        String sql = "SELECT id FROM empleado WHERE nombre = ? AND apellido = ? AND COALESCE(mail, '') = COALESCE(?, '')";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, empleado.getNombre());
+            pstmt.setString(2, empleado.getApellido());
+            pstmt.setString(3, empleado.getMail());
+            try (ResultSet rs = pstmt.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : null;
+            }
+        }
+    }
+
+    private static final String SQL_CAMBIOS_ESTADO = """
+        SELECT ce.*, e.nombre AS emp_nombre, e.apellido AS emp_apellido, e.mail AS emp_mail,
+               e.comision_medica_codigo AS emp_cm_codigo
+        FROM %s ce
+        LEFT JOIN empleado e ON ce.empleado_id = e.id
+        WHERE ce.%s = ?
+        ORDER BY ce.id
+    """;
+
+    private void cargarCambiosEstado(Bolsin bolsin) {
+        String sql = SQL_CAMBIOS_ESTADO.formatted("cambio_estado_bolsin", "bolsin_numero");
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, bolsin.getNumero());
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    CambioEstadoBolsin cambio = new CambioEstadoBolsin(
+                            buscarEstado(rs.getString("estado_ambito"), rs.getString("estado_nombre")),
+                            LocalDateTime.parse(rs.getString("fecha_hora_inicio")),
+                            mapearEmpleado(rs));
+                    String fin = rs.getString("fecha_hora_fin");
+                    if (fin != null) cambio.setFechaHoraFin(LocalDateTime.parse(fin));
+                    bolsin.agregarCambioEstado(cambio);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void cargarCambiosEstado(Documento doc) {
+        String sql = SQL_CAMBIOS_ESTADO.formatted("cambio_estado_documentacion", "documentacion_numero");
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, doc.getNumero());
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    CambioEstadoDocumentacion cambio = new CambioEstadoDocumentacion(
+                            buscarEstado(rs.getString("estado_ambito"), rs.getString("estado_nombre")),
+                            LocalDateTime.parse(rs.getString("fecha_hora_inicio")),
+                            mapearEmpleado(rs));
+                    String fin = rs.getString("fecha_hora_fin");
+                    if (fin != null) cambio.setFechaHoraFin(LocalDateTime.parse(fin));
+                    doc.agregarCambioEstado(cambio);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private Empleado mapearEmpleado(ResultSet rs) throws SQLException {
+        String nombre = rs.getString("emp_nombre");
+        if (nombre == null) return null;
+        return new Empleado(nombre, rs.getString("emp_apellido"), rs.getString("emp_mail"),
+                buscarComisionMedica(rs.getInt("emp_cm_codigo")));
     }
 
     public void cargarDatosDePrueba() {
@@ -377,11 +516,13 @@ public class SqliteBolsinDatasource {
                 int empId = obtenerUltimoEmpleadoId();
                 insertarUsuario("jero", "1234", empId);
 
-                Estado estadoEnviadoBol = new Estado("BOL", "ENVIADO", "Bolsín enviado");
-                Estado estadoEnviadoRem = new Estado("REM", "ENVIADO", "Remito enviado");
-                Estado estadoEnviadaDoc = new Estado("DOC", "ENVIADA", "Documentación enviada");
+                Estado estadoEnviadoBol = buscarEstado("BOL", "ENVIADO");
+                Estado estadoEnviadoRem = buscarEstado("REM", "ENVIADO");
+                Estado estadoEnviadaDoc = buscarEstado("DOC", "ENVIADA");
+                LocalDateTime ahora = LocalDateTime.now();
 
-                Bolsin b1 = new Bolsin(1001, buenosAires, cordoba, estadoEnviadoBol);
+                Bolsin b1 = new Bolsin(1001, LocalDate.now(), buenosAires, cordoba);
+                b1.crearNuevoCE(estadoEnviadoBol, ahora, null);
                 b1.setNroPrecinto("PREC-001");
                 b1.agregarRemito(crearRemito(500, LocalDate.now(), buenosAires, cordoba, 1,
                         "Expediente-cardiológico", "Historia clínica del paciente X", estadoEnviadoRem, estadoEnviadaDoc));
@@ -389,7 +530,8 @@ public class SqliteBolsinDatasource {
                         "Estudios-complementarios", "Radiografías y análisis", estadoEnviadoRem, estadoEnviadaDoc));
                 guardar(b1);
 
-                Bolsin b2 = new Bolsin(1002, buenosAires, cordoba, estadoEnviadoBol);
+                Bolsin b2 = new Bolsin(1002, LocalDate.now(), buenosAires, cordoba);
+                b2.crearNuevoCE(estadoEnviadoBol, ahora, null);
                 b2.setNroPrecinto("PREC-002");
                 b2.agregarRemito(crearRemito(502, LocalDate.now(), buenosAires, cordoba, 3,
                         "Turno-derivación", "Documentación para derivación", estadoEnviadoRem, estadoEnviadaDoc));
@@ -453,8 +595,9 @@ public class SqliteBolsinDatasource {
                                int docId, String asunto, String desc,
                                Estado estadoRem, Estado estadoDoc) {
         Remito remito = new Remito(numero, fecha, estadoRem, cmOrigen, cmDestino);
-        Documento doc = new Documento(docId, asunto, desc, estadoDoc,
+        Documento doc = new Documento(docId, asunto, desc,
                 new TipoDocumento("EXPEDIENTE", "Expediente médico"));
+        doc.crearNuevoCE(estadoDoc, LocalDateTime.now(), null);
         remito.agregarDetalle(new DetalleRemito(doc));
         return remito;
     }

@@ -8,6 +8,7 @@ public class Empleado implements Serializable {
     private String apellido;
     private String mail;
     private ComisionMedica comisionMedica;
+    private Usuario usuario;
 
     public Empleado(String nombre, String apellido, String mail, ComisionMedica comisionMedica) {
         this.nombre = nombre;
@@ -34,5 +35,22 @@ public class Empleado implements Serializable {
 
     public ComisionMedica getComisionMedica() {
         return comisionMedica;
+    }
+
+    public ComisionMedica getCM() {
+        return comisionMedica;
+    }
+
+    public Usuario getUsuario() {
+        return usuario;
+    }
+
+    public void setUsuario(Usuario usuario) {
+        this.usuario = usuario;
+    }
+
+    public boolean esTuUsuario(Usuario usuario) {
+        return this.usuario != null && usuario != null
+                && this.usuario.getNombreUsuario().equals(usuario.getNombreUsuario());
     }
 }

@@ -2,73 +2,104 @@ package main.Gestores;
 
 import main.Domain.Entities.*;
 import main.Domain.Repositories.BolsinRepository;
+import main.Domain.Repositories.EstadoRepository;
 import main.Domain.Repositories.UsuarioRepository;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Control del CU 28 - Registrar recepcion de bolsin.
+ * Cada metodo corresponde a un mensaje del diagrama de secuencia; el gestor coordina
+ * y delega en las entidades (Sesion, Empleado, Bolsin, Estado).
+ */
 public class GestorRecepcionBolsin {
 
-    private final String nombreUsuarioLogueado;
+    public static final int OPCION_RECIBIR = 1;
+
+    private final Sesion actualSesion;
     private final BolsinRepository bolsinRepository;
     private final UsuarioRepository usuarioRepository;
+    private final EstadoRepository estadoRepository;
 
-    private ArrayList<Bolsin> bolsinesSeleccionados;
-    private String informacionRemito;
-    private int opcionDeRecepcion;
-    private LocalDateTime fechaHoraActual;
-    private int opcionSeleccionada;
+    private Empleado empleadoLogueado;
+    private ComisionMedica cmLogueado;
+    private List<Bolsin> bolsinesSeleccionados;
     private Bolsin bolsinSeleccionado;
+    private List<String> informacionRemito;
+    private int opcionDeRecepcion;
+    private boolean opcionSeleccionada;
+    private LocalDateTime fechaHoraActual;
 
-    private final Estado estadoRecibidoEnCMDestino = new Estado("BOL", "RECIBIDO", "Bolsín recibido en comisión destino");
-    private final Estado estadoRecibidoYAceptado = new Estado("REM", "RECIBIDO_ACEPTADO", "Remito recibido y aceptado");
-    private final Estado estadoRecibidaYAceptada = new Estado("DOC", "RECIBIDA_ACEPTADA", "Documentación recibida y aceptada");
+    private Estado estadoRecibidoEnCMDestino;
+    private Estado estadoRecibidoYAceptado;
+    private Estado estadoRecibidaYAceptada;
 
-    public GestorRecepcionBolsin(String nombreUsuarioLogueado,
+    public GestorRecepcionBolsin(Sesion actualSesion,
                                  BolsinRepository bolsinRepository,
-                                 UsuarioRepository usuarioRepository) {
-        this.nombreUsuarioLogueado = nombreUsuarioLogueado;
+                                 UsuarioRepository usuarioRepository,
+                                 EstadoRepository estadoRepository) {
+        this.actualSesion = actualSesion;
         this.bolsinRepository = bolsinRepository;
         this.usuarioRepository = usuarioRepository;
+        this.estadoRepository = estadoRepository;
     }
 
-    public void opRegistrarRecepcionBolsin() {
-        getFechaYHoraActual();
+    public Empleado opRegistrarRecepcionBolsin() {
+        buscarUsuarioLogueado();
+        getCM();
+        return empleadoLogueado;
     }
 
-    public Usuario buscarUsuarioLogueado() {
-        return usuarioRepository.buscarPorNombre(nombreUsuarioLogueado);
-    }
-
-    public ComisionMedica getCM() {
-        return buscarUsuarioLogueado().getEmpleado().getComisionMedica();
-    }
-
-    public List<Bolsin> buscarBolsinesEnviados() {
-        return bolsinRepository.obtenerEnviadosHacia(getCM());
-    }
-
-    public void tomarSeleccionBolsin(int numeroBolsin) {
-        this.bolsinSeleccionado = bolsinRepository.buscarPorNumero(numeroBolsin);
-    }
-
-    public String obtenerInformacionRemito() {
-        if (bolsinSeleccionado == null) return "";
-        StringBuilder info = new StringBuilder();
-        info.append("Origen: ").append(bolsinSeleccionado.getCmOrigen().getNombre()).append("\n");
-        info.append("Precinto: ").append(bolsinSeleccionado.getNroPrecinto() != null
-                ? bolsinSeleccionado.getNroPrecinto() : "N/A").append("\n");
-        for (Remito remito : bolsinSeleccionado.getRemitos()) {
-            info.append("Remito #").append(remito.getNumero()).append(" - ");
-            info.append("Fecha: ").append(remito.getFecha()).append("\n");
-            for (DetalleRemito detalle : remito.getDetalles()) {
-                Documento doc = detalle.getDocumentacion();
-                info.append("  Doc #").append(doc.getNumero()).append(": ").append(doc.getAsunto()).append("\n");
+    // getUsuario() a la sesion y *esTuUsuario() a cada empleado
+    private void buscarUsuarioLogueado() {
+        Usuario usuario = actualSesion.getUsuario();
+        this.empleadoLogueado = null;
+        for (Empleado empleado : usuarioRepository.obtenerEmpleados()) {
+            if (empleado.esTuUsuario(usuario)) {
+                this.empleadoLogueado = empleado;
+                return;
             }
         }
-        this.informacionRemito = info.toString();
+    }
+
+    private ComisionMedica getCM() {
+        this.cmLogueado = empleadoLogueado != null ? empleadoLogueado.getCM() : null;
+        return cmLogueado;
+    }
+
+    // loop mientras haya bolsines: sosEnviado() y esTuCM()
+    public List<Bolsin> buscarBolsinesEnviados() {
+        if (cmLogueado == null) {
+            opRegistrarRecepcionBolsin();
+        }
+        this.bolsinesSeleccionados = new ArrayList<>();
+        if (cmLogueado == null) {
+            return bolsinesSeleccionados;
+        }
+        for (Bolsin bolsin : bolsinRepository.obtenerTodos()) {
+            if (bolsin.sosEnviado() && bolsin.esTuCM(cmLogueado)) {
+                bolsinesSeleccionados.add(bolsin);
+            }
+        }
+        return bolsinesSeleccionados;
+    }
+
+    /** Toma el bolsin elegido entre los enviados. Devuelve null si no esta pendiente. */
+    public Bolsin tomarSeleccionBolsin(int numeroBolsin) {
+        this.bolsinSeleccionado = null;
+        for (Bolsin bolsin : buscarBolsinesEnviados()) {
+            if (bolsin.esTuNumero(numeroBolsin)) {
+                this.bolsinSeleccionado = bolsin;
+            }
+        }
+        return bolsinSeleccionado;
+    }
+
+    public List<String> obtenerInformacionRemito() {
+        if (bolsinSeleccionado == null) return List.of();
+        this.informacionRemito = bolsinSeleccionado.obtenerInformacionRemito();
         return informacionRemito;
     }
 
@@ -76,119 +107,67 @@ public class GestorRecepcionBolsin {
         this.opcionDeRecepcion = opcion;
     }
 
-    public void tomarConfirmacion(boolean confirmado) {
-        this.opcionSeleccionada = confirmado ? 1 : 0;
+    /** Con la confirmacion busca los estados, toma la fecha y registra la recepcion. Devuelve el bolsin recibido. */
+    public Bolsin tomarConfirmacion(boolean confirmado) {
+        this.opcionSeleccionada = confirmado;
+        Bolsin recibido = bolsinSeleccionado;
+        if (!opcionSeleccionada || opcionDeRecepcion != OPCION_RECIBIR || recibido == null) {
+            return null;
+        }
+
+        obtenerEstadoRecibidoEnCMDestino();
+        obtenerEstadoRecibidoYAceptado();
+        obtenerEstadoRecibidaYAceptada();
+        getFechaYHoraActual();
+        registrarRecepcionBolsin();
+        llamarCU29();
+        finCU();
+        return recibido;
     }
 
-    public Estado obtenerEstadoRecibidoEnCMDestino() {
-        return estadoRecibidoEnCMDestino;
+    private void obtenerEstadoRecibidoEnCMDestino() {
+        for (Estado estado : estadoRepository.obtenerTodos()) {
+            if (estado.esAmbitoBolsin() && estado.esEstadoRecibidoEnCMDestino()) {
+                this.estadoRecibidoEnCMDestino = estado;
+            }
+        }
     }
 
-    public Estado obtenerEstadoRecibidoYAceptado() {
-        return estadoRecibidoYAceptado;
+    private void obtenerEstadoRecibidoYAceptado() {
+        for (Estado estado : estadoRepository.obtenerTodos()) {
+            if (estado.esAmbitoRemito() && estado.esEstadoRecibidoYAceptado()) {
+                this.estadoRecibidoYAceptado = estado;
+            }
+        }
     }
 
-    public Estado obtenerEstadoRecibidaYAceptada() {
-        return estadoRecibidaYAceptada;
+    private void obtenerEstadoRecibidaYAceptada() {
+        for (Estado estado : estadoRepository.obtenerTodos()) {
+            if (estado.esAmbitoDocumentacion() && estado.esEstadoRecibidaYAceptada()) {
+                this.estadoRecibidaYAceptada = estado;
+            }
+        }
     }
 
-    public LocalDateTime getFechaYHoraActual() {
+    private void getFechaYHoraActual() {
         this.fechaHoraActual = LocalDateTime.now();
-        return fechaHoraActual;
     }
 
-    public void registrarRecepcionBolsin() {
-        if (bolsinSeleccionado == null) return;
-        bolsinSeleccionado.setEstado(estadoRecibidoEnCMDestino);
-        bolsinSeleccionado.crearNuevoCEO(estadoRecibidoEnCMDestino, null);
-        aceptarRemitos(bolsinSeleccionado);
+    // El bolsin cambia su estado y delega en sus remitos, que delegan en su documentacion
+    private void registrarRecepcionBolsin() {
+        bolsinSeleccionado.mostrarRecibido(estadoRecibidoEnCMDestino, estadoRecibidoYAceptado,
+                estadoRecibidaYAceptada, fechaHoraActual, empleadoLogueado);
         bolsinRepository.guardar(bolsinSeleccionado);
     }
 
-    public void llamarCU290() {
+    // <<include>> CU 29 - Notificar recepcion de bolsin (fuera del alcance de esta entrega)
+    private void llamarCU29() {
     }
 
-    public void finCU() {
+    private void finCU() {
         this.bolsinSeleccionado = null;
         this.informacionRemito = null;
-    }
-
-    public Bolsin getBolsinSeleccionado() {
-        return bolsinSeleccionado;
-    }
-
-    public Bolsin buscarBolsinPorNumero(int numero) {
-        return bolsinRepository.buscarPorNumero(numero);
-    }
-
-    public String getInformacionRemito() {
-        return informacionRemito;
-    }
-
-    public List<ComisionMedica> obtenerComisionesMedicas() {
-        return bolsinRepository.obtenerComisionesMedicas();
-    }
-
-    public void crearBolsin(int numero, String precinto, double peso, ComisionMedica cmOrigen, ComisionMedica cmDestino) {
-        bolsinRepository.crearBolsin(numero, precinto, peso, cmOrigen, cmDestino);
-    }
-
-    public int obtenerSiguienteNumeroBolsin() {
-        return bolsinRepository.obtenerSiguienteNumeroBolsin();
-    }
-
-    public int obtenerSiguienteNumeroRemito() {
-        return bolsinRepository.obtenerSiguienteNumeroRemito();
-    }
-
-    public int obtenerSiguienteNumeroDocumentacion() {
-        return bolsinRepository.obtenerSiguienteNumeroDocumentacion();
-    }
-
-    public void crearRemitoConDocumentacion(int bolsinNumero, int remitoNumero,
-                                            ComisionMedica cmOrigen, ComisionMedica cmDestino,
-                                            String asunto, String descripcion, String tipoDoc) {
-        Estado estadoRem = new Estado("REM", "ENVIADO", "Remito enviado");
-        Estado estadoDoc = new Estado("DOC", "ENVIADA", "Documentación enviada");
-
-        Remito remito = new Remito(remitoNumero, LocalDate.now(), estadoRem, cmOrigen, cmDestino);
-
-        int docNumero = obtenerSiguienteNumeroDocumentacion();
-        TipoDocumento tipo = new TipoDocumento(tipoDoc, "Tipo de documento: " + tipoDoc);
-        Documento doc = new Documento(docNumero, asunto, descripcion, estadoDoc, tipo);
-
-        remito.agregarDetalle(new DetalleRemito(doc));
-        bolsinRepository.agregarRemitoABolsin(bolsinNumero, remito);
-    }
-
-    public void crearUsuario(String nombreUsuario, String password,
-                             String nombreEmp, String apellidoEmp, String mailEmp, ComisionMedica cm) {
-        Empleado emp = new Empleado(nombreEmp, apellidoEmp, mailEmp, cm);
-        usuarioRepository.crearUsuario(nombreUsuario, password, emp);
-    }
-
-    public ComisionMedica crearComisionMedica(int codigo, String nombre, String direccion, String email, String telefono) {
-        return usuarioRepository.crearComisionMedica(codigo, nombre, direccion, email, telefono);
-    }
-
-    public List<Bolsin> obtenerTodosBolsines() {
-        return bolsinRepository.obtenerTodos();
-    }
-
-    public List<Usuario> obtenerTodosUsuarios() {
-        return usuarioRepository.obtenerTodos();
-    }
-
-    private void aceptarRemitos(Bolsin bolsin) {
-        for (Remito remito : bolsin.getRemitos()) {
-            remito.aceptar(null);
-            aceptarDocumentacion(remito);
-        }
-    }
-
-    private void aceptarDocumentacion(Remito remito) {
-        for (DetalleRemito detalle : remito.getDetalles()) {
-            detalle.aceptarDocumentacion(null);
-        }
+        this.opcionDeRecepcion = 0;
+        this.opcionSeleccionada = false;
     }
 }

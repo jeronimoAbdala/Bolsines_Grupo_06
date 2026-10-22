@@ -1,6 +1,7 @@
 package main.Domain.Entities;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
 public class DetalleRemito implements Serializable {
 
@@ -26,9 +27,7 @@ public class DetalleRemito implements Serializable {
         return documento;
     }
 
-    public void aceptarDocumentacion(Empleado empleado) {
-        documento.setEstado(
-                new Estado("DOC", "RECIBIDA_ACEPTADA", "Documentación recibida y aceptada")
-        );
+    public void aceptarDocumentacion(Estado estadoRecibidaYAceptada, LocalDateTime fechaHoraActual, Empleado empleado) {
+        documento.aceptar(estadoRecibidaYAceptada, fechaHoraActual, empleado);
     }
 }

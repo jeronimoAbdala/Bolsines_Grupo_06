@@ -11,8 +11,8 @@ Frontend (React) ──HTTP──▶ Presentation (REST) → Controller → Serv
 | Capa | Paquete | Rol |
 |---|---|---|
 | **Presentation** | `Presentation/Api` | Endpoints REST (`@RestController`) y DTOs. Traducen HTTP ↔ controller, sin lógica de negocio. |
-| **Controller** | `Controllers` | Intermediario delgado. Delega todo al gestor. |
-| **Service** | `Gestores` | Lógica de negocio del caso de uso. |
+| **Controller** | `Controllers` | Intermediario delgado. `RecepcionBolsinController` expone solo los mensajes pantalla → gestor del CU 28; `AdministracionController` las altas de apoyo. |
+| **Service** | `Gestores` | `GestorRecepcionBolsin`: control del CU 28, un método por mensaje del diagrama de secuencia. `GestorAdministracion`: altas y consultas de apoyo. |
 | **Repository** | `Domain/Repositories` (interfaces) | Contratos de acceso a datos. |
 | **Datasource** | `Infrastructure/Datasources` | Implementación concreta (SQLite). |
 | **Entities** | `Domain/Entities` | Modelo de dominio. Serializable. |
@@ -28,7 +28,7 @@ SQLite embebido via `org.xerial:sqlite-jdbc` (dependencia Maven).
 - Datos de prueba: `cargarDatosDePrueba()` se ejecuta solo si las tablas están vacías
 - Para reiniciar: borrar `bolsines.db`
 
-**Tablas**: `comision_medica`, `empleado`, `usuario`, `bolsin`, `remito`, `detalle_remito`, `documento`
+**Tablas**: `comision_medica`, `empleado`, `usuario`, `estado`, `bolsin`, `cambio_estado_bolsin`, `remito`, `detalle_remito`, `documento`, `cambio_estado_documentacion`
 
 ## Entidades (alineadas al UML)
 
@@ -45,13 +45,18 @@ SQLite embebido via `org.xerial:sqlite-jdbc` (dependencia Maven).
 
 ## Caso de uso: Registrar Recepción
 
-1. `GET /api/recepcion/sesion` → la pantalla muestra usuario logueado y CM
-2. `GET /api/recepcion/bolsines` → lista bolsines ENVIADO hacia la CM del usuario
-3. Usuario selecciona uno → `GET /api/recepcion/bolsines/{n}` → info de remitos (origen, precinto, docs)
-4. Opción Recibir/Rechazar + modal de confirmación → `POST /api/recepcion/bolsines/{n}/recibir`
-5. Gestor cambia estados en cascada: Bolsín→RECIBIDO, Remitos→RECIBIDO_ACEPTADO, Docs→RECIBIDA_ACEPTADA
-6. Persiste a SQLite
-7. Al siguiente reinicio solo aparecen bolsines pendientes
+El código sigue el diagrama de secuencia: el gestor coordina y cada entidad hace su parte (Experto).
+
+1. `GET /api/recepcion/sesion` → `opRegistrarRecepcionBolsin()`: `buscarUsuarioLogueado()` (`actualSesion.getUsuario()` + `*esTuUsuario()` a cada empleado) y `getCM()` (`logueado.getCM()`)
+2. `GET /api/recepcion/bolsines` → `buscarBolsinesEnviados()`: por cada bolsín `sosEnviado()` (`*sosActual()` → `actual.sosEnviado()` → `estado.esEnviado()`) y `esTuCM()`
+3. `GET /api/recepcion/bolsines/{n}` → `tomarSeleccionBolsin()` + `obtenerInformacionRemito()`: Bolsín → `remito.getNumero()` / `remito.buscarDocumentacion()` → `detalle.getDocumentacion()` → `getAsunto()` / `mostrarTipoDocumentacion()`
+4. `POST /api/recepcion/bolsines/{n}/recibir` → `tomarOpcionDeRecepcion()` + `tomarConfirmacion()`:
+   - `obtenerEstadoRecibidoEnCMDestino()`, `obtenerEstadoRecibidoYAceptado()`, `obtenerEstadoRecibidaYAceptada()`: recorren los estados del repositorio preguntando `esAmbitoX()` y `esEstadoX()`
+   - `getFechaYHoraActual()` y `registrarRecepcionBolsin()` → `bolsin.mostrarRecibido(...)`: cierra el cambio de estado actual (`setFechaHoraFin`), `crearNuevoCE()` y por cada remito `aceptar()` → `detalle.aceptarDocumentacion()` → `documentacion.aceptar()` (cierra su CE actual y crea uno nuevo)
+   - `llamarCU29()` y `finCU()`
+5. Se persiste el bolsín con sus remitos, documentación y cambios de estado (con fecha y empleado)
+
+Las entidades nunca hacen `new Estado(...)`: los estados se buscan en la tabla `estado` y se pasan por parámetro. El estado de `Bolsin` y `Documento` es el de su cambio de estado actual, como en el diagrama de clases.
 
 ## Compilar y ejecutar
 

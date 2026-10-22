@@ -37,11 +37,6 @@ public class BolsinRepositoryImpl implements BolsinRepository {
     }
 
     @Override
-    public List<Bolsin> obtenerEnviadosHacia(ComisionMedica cmDestino) {
-        return datasource.obtenerEnviadosHacia(cmDestino);
-    }
-
-    @Override
     public List<ComisionMedica> obtenerComisionesMedicas() {
         return datasource.obtenerComisionesMedicas();
     }

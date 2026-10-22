@@ -1,6 +1,6 @@
 package main.Presentation.Api;
 
-import main.Controllers.RecepcionBolsinController;
+import main.Controllers.AdministracionController;
 import main.Presentation.Api.Dto.ComisionMedicaDto;
 import main.Presentation.Api.Dto.Requests;
 import org.springframework.http.HttpStatus;
@@ -12,9 +12,9 @@ import java.util.List;
 @RequestMapping("/api/comisiones")
 public class ComisionMedicaRestController {
 
-    private final RecepcionBolsinController controller;
+    private final AdministracionController controller;
 
-    public ComisionMedicaRestController(RecepcionBolsinController controller) {
+    public ComisionMedicaRestController(AdministracionController controller) {
         this.controller = controller;
     }
 
