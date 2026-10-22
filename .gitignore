@@ -33,3 +33,6 @@ target/
 
 ### Node ###
 node_modules/
+
+### SQLite (se genera al levantar el backend) ###
+*.db

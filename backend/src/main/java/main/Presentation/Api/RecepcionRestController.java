@@ -2,7 +2,8 @@ package main.Presentation.Api;
 
 import main.Controllers.RecepcionBolsinController;
 import main.Domain.Entities.Bolsin;
-import main.Domain.Entities.Usuario;
+import main.Domain.Entities.Empleado;
+import main.Gestores.GestorRecepcionBolsin;
 import main.Presentation.Api.Dto.BolsinDto;
 import main.Presentation.Api.Dto.DetalleRecepcionDto;
 import main.Presentation.Api.Dto.UsuarioDto;
@@ -11,8 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * CU 28 - Registrar recepcion de bolsin.
- * Reemplaza a la pantalla de consola: cada endpoint corresponde a un paso del caso de uso.
+ * CU 28 - Registrar recepcion de bolsin. Cumple el rol de PantallaRegistrarRecepcionBolsin:
+ * cada endpoint corresponde a un mensaje del actor a la pantalla en el diagrama de secuencia.
  * El gestor guarda el bolsin seleccionado, por eso los pasos que lo usan se sincronizan.
  */
 @RestController
@@ -25,47 +26,53 @@ public class RecepcionRestController {
         this.controller = controller;
     }
 
-    /** Usuario logueado y su comision medica (mostrarCM). */
+    /** opcRegistrarRecepcionBolsin(): habilita la ventana y muestra la CM del usuario logueado (mostrarCM). */
     @GetMapping("/sesion")
-    public UsuarioDto sesion() {
-        Usuario usuario = controller.buscarUsuarioLogueado();
-        if (usuario == null) {
-            throw ApiException.noEncontrado("No se encontro el usuario logueado.");
+    public UsuarioDto opcRegistrarRecepcionBolsin() {
+        synchronized (controller) {
+            Empleado logueado = controller.opRegistrarRecepcionBolsin();
+            if (logueado == null) {
+                throw ApiException.noEncontrado("No se encontro el usuario logueado.");
+            }
+            return UsuarioDto.de(logueado.getUsuario());
         }
-        return UsuarioDto.de(usuario);
     }
 
-    /** Bolsines en estado ENVIADO hacia la CM del usuario (mostrarBolsinesParaSeleccion). */
+    /** mostrarBolsinesParaSeleccion(): bolsines enviados hacia la CM del usuario. */
     @GetMapping("/bolsines")
-    public List<BolsinDto> bolsinesEnviados() {
-        return controller.buscarBolsinesEnviados().stream().map(BolsinDto::de).toList();
+    public List<BolsinDto> mostrarBolsinesParaSeleccion() {
+        synchronized (controller) {
+            return controller.buscarBolsinesEnviados().stream().map(BolsinDto::de).toList();
+        }
     }
 
-    /** Seleccion de un bolsin y datos de sus remitos (tomarSeleccionBolsin + obtenerInformacionRemito). */
+    /** tomarSeleccionBolsin(): el gestor pide la informacion de los remitos (mostrarDatosRemito). */
     @GetMapping("/bolsines/{numero}")
-    public DetalleRecepcionDto seleccionarBolsin(@PathVariable int numero) {
+    public DetalleRecepcionDto tomarSeleccionBolsin(@PathVariable int numero) {
         synchronized (controller) {
-            Bolsin bolsin = buscarPendiente(numero);
-            controller.tomarSeleccionBolsin(numero);
-            return new DetalleRecepcionDto(BolsinDto.de(bolsin), controller.obtenerInformacionRemito());
+            Bolsin bolsin = seleccionar(numero);
+            List<String> informacion = controller.obtenerInformacionRemito();
+            return new DetalleRecepcionDto(BolsinDto.de(bolsin), String.join("\n", informacion));
         }
     }
 
-    /** Opcion "Recibir" confirmada: cambia estados en cascada y persiste (registrarRecepcion). */
+    /** tomarOpcionDeRecepcion("Recibir") + tomarConfirmacion(): registra la recepcion e informa el resultado. */
     @PostMapping("/bolsines/{numero}/recibir")
-    public BolsinDto recibir(@PathVariable int numero) {
+    public BolsinDto tomarConfirmacion(@PathVariable int numero) {
         synchronized (controller) {
-            buscarPendiente(numero);
-            controller.registrarRecepcion(numero);
-            return BolsinDto.de(controller.buscarBolsinPorNumero(numero));
+            seleccionar(numero);
+            controller.tomarOpcionDeRecepcion(GestorRecepcionBolsin.OPCION_RECIBIR);
+            Bolsin recibido = controller.tomarConfirmacion(true);
+            return BolsinDto.de(recibido);
         }
     }
 
-    private Bolsin buscarPendiente(int numero) {
-        return controller.buscarBolsinesEnviados().stream()
-                .filter(b -> b.esTuNumero(numero))
-                .findFirst()
-                .orElseThrow(() -> ApiException.conflicto(
-                        "El Bolsin #" + numero + " no esta pendiente de recepcion para su comision medica."));
+    private Bolsin seleccionar(int numero) {
+        Bolsin bolsin = controller.tomarSeleccionBolsin(numero);
+        if (bolsin == null) {
+            throw ApiException.conflicto(
+                    "El Bolsin #" + numero + " no esta pendiente de recepcion para su comision medica.");
+        }
+        return bolsin;
     }
 }

@@ -14,11 +14,11 @@ public interface UsuarioRepository {
 
     List<Usuario> obtenerTodos();
 
+    List<Empleado> obtenerEmpleados();
+
     void crearUsuario(String nombreUsuario, String password, Empleado empleado);
 
     List<ComisionMedica> obtenerComisionesMedicas();
 
     ComisionMedica crearComisionMedica(int codigo, String nombre, String direccion, String email, String telefono);
-
-
 }

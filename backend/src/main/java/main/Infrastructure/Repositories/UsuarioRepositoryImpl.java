@@ -31,6 +31,11 @@ public class UsuarioRepositoryImpl implements UsuarioRepository {
     }
 
     @Override
+    public List<Empleado> obtenerEmpleados() {
+        return datasource.obtenerTodos().stream().map(Usuario::getEmpleado).toList();
+    }
+
+    @Override
     public void crearUsuario(String nombreUsuario, String password, Empleado empleado) {
         datasource.crearUsuario(nombreUsuario, password, empleado);
     }

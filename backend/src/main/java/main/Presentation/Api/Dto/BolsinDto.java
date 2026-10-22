@@ -1,6 +1,7 @@
 package main.Presentation.Api.Dto;
 
 import main.Domain.Entities.Bolsin;
+import main.Domain.Entities.Estado;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -11,8 +12,12 @@ public record BolsinDto(int numero, LocalDate fechaGeneracion, String nroPrecint
 
     public static BolsinDto de(Bolsin b) {
         return new BolsinDto(b.getNumero(), b.getFechaGeneracion(), b.getNroPrecinto(), b.getPeso(),
-                b.getCantRemitos(), b.getEstado().getNombre(),
+                b.getCantRemitos(), nombre(b.getEstadoActual()),
                 ComisionMedicaDto.de(b.getCmOrigen()), ComisionMedicaDto.de(b.getCmDestino()),
                 b.getRemitos().stream().map(RemitoDto::de).toList());
+    }
+
+    static String nombre(Estado estado) {
+        return estado != null ? estado.getNombre() : "";
     }
 }

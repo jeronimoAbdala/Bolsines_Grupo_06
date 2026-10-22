@@ -1,6 +1,6 @@
 package main.Presentation.Api;
 
-import main.Controllers.RecepcionBolsinController;
+import main.Controllers.AdministracionController;
 import main.Domain.Entities.Bolsin;
 import main.Domain.Entities.ComisionMedica;
 import main.Presentation.Api.Dto.BolsinDto;
@@ -16,9 +16,9 @@ public class BolsinRestController {
 
     private static final List<String> TIPOS_DOCUMENTO = List.of("EXPEDIENTE", "INFORME", "CERTIFICADO", "OTRO");
 
-    private final RecepcionBolsinController controller;
+    private final AdministracionController controller;
 
-    public BolsinRestController(RecepcionBolsinController controller) {
+    public BolsinRestController(AdministracionController controller) {
         this.controller = controller;
     }
 

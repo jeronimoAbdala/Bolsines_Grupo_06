@@ -6,6 +6,6 @@ public record DocumentoDto(int numero, String asunto, String descripcion, String
 
     public static DocumentoDto de(Documento doc) {
         return new DocumentoDto(doc.getNumero(), doc.getAsunto(), doc.getDescripcion(),
-                doc.mostrarTipoDocumentacion(), doc.getEstado().getNombre());
+                doc.mostrarTipoDocumentacion(), BolsinDto.nombre(doc.getEstadoActual()));
     }
 }

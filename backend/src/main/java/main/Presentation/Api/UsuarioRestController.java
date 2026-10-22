@@ -1,6 +1,6 @@
 package main.Presentation.Api;
 
-import main.Controllers.RecepcionBolsinController;
+import main.Controllers.AdministracionController;
 import main.Domain.Entities.ComisionMedica;
 import main.Presentation.Api.Dto.Requests;
 import main.Presentation.Api.Dto.UsuarioDto;
@@ -13,9 +13,9 @@ import java.util.List;
 @RequestMapping("/api/usuarios")
 public class UsuarioRestController {
 
-    private final RecepcionBolsinController controller;
+    private final AdministracionController controller;
 
-    public UsuarioRestController(RecepcionBolsinController controller) {
+    public UsuarioRestController(AdministracionController controller) {
         this.controller = controller;
     }
 

@@ -136,6 +136,34 @@ public class DatabaseManager {
                 )
             """);
 
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS cambio_estado_bolsin (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bolsin_numero INTEGER NOT NULL,
+                    fecha_hora_inicio TEXT NOT NULL,
+                    fecha_hora_fin TEXT,
+                    estado_ambito TEXT,
+                    estado_nombre TEXT,
+                    empleado_id INTEGER,
+                    FOREIGN KEY (bolsin_numero) REFERENCES bolsin(numero),
+                    FOREIGN KEY (empleado_id) REFERENCES empleado(id)
+                )
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS cambio_estado_documentacion (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    documentacion_numero INTEGER NOT NULL,
+                    fecha_hora_inicio TEXT NOT NULL,
+                    fecha_hora_fin TEXT,
+                    estado_ambito TEXT,
+                    estado_nombre TEXT,
+                    empleado_id INTEGER,
+                    FOREIGN KEY (documentacion_numero) REFERENCES documento(numero),
+                    FOREIGN KEY (empleado_id) REFERENCES empleado(id)
+                )
+            """);
+
         } catch (SQLException e) {
             throw new RuntimeException("Error al crear tablas", e);
         }
