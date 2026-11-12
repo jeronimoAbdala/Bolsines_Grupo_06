@@ -2,6 +2,9 @@ package main.Gestores;
 
 import main.Domain.Entities.*;
 import main.Domain.Repositories.BolsinRepository;
+import main.Domain.Repositories.EmpleadoRepository;
+import main.Domain.Repositories.EstadoRepository;
+import main.Domain.Repositories.TipoDocumentoRepository;
 import main.Domain.Repositories.UsuarioRepository;
 
 import java.time.LocalDate;
@@ -11,43 +14,83 @@ import java.util.List;
 
 public class GestorRecepcionBolsin {
 
-    private final String nombreUsuarioLogueado;
     private final BolsinRepository bolsinRepository;
     private final UsuarioRepository usuarioRepository;
+    private final EmpleadoRepository empleadoRepository;
+    private final EstadoRepository estadoRepository;
+    private final TipoDocumentoRepository tipoDocumentoRepository;
 
-    private ArrayList<Bolsin> bolsinesSeleccionados;
+    private Sesion sesionActual;
+    private Empleado empleadoLogueado;
+
+    private List<Bolsin> bolsinesSeleccionados;
     private String informacionRemito;
     private int opcionDeRecepcion;
     private LocalDateTime fechaHoraActual;
     private int opcionSeleccionada;
     private Bolsin bolsinSeleccionado;
 
-    private final Estado estadoRecibidoEnCMDestino = new Estado("BOL", "RECIBIDO", "Bolsín recibido en comisión destino");
-    private final Estado estadoRecibidoYAceptado = new Estado("REM", "RECIBIDO_ACEPTADO", "Remito recibido y aceptado");
-    private final Estado estadoRecibidaYAceptada = new Estado("DOC", "RECIBIDA_ACEPTADA", "Documentación recibida y aceptada");
+    /** Estados persistidos que obtiene el paso 11 recorriendo EstadoRepository.obtenerTodos(). */
+    private Estado estadoRecibidoEnCMDestino;
+    private Estado estadoRecibidoYAceptado;
+    private Estado estadoRecibidaYAceptada;
 
-    public GestorRecepcionBolsin(String nombreUsuarioLogueado,
-                                 BolsinRepository bolsinRepository,
-                                 UsuarioRepository usuarioRepository) {
-        this.nombreUsuarioLogueado = nombreUsuarioLogueado;
+    public GestorRecepcionBolsin(BolsinRepository bolsinRepository,
+                                 UsuarioRepository usuarioRepository,
+                                 EmpleadoRepository empleadoRepository,
+                                 EstadoRepository estadoRepository,
+                                 TipoDocumentoRepository tipoDocumentoRepository) {
         this.bolsinRepository = bolsinRepository;
         this.usuarioRepository = usuarioRepository;
+        this.empleadoRepository = empleadoRepository;
+        this.estadoRepository = estadoRepository;
+        this.tipoDocumentoRepository = tipoDocumentoRepository;
+    }
+
+    /** No hay login: la Sesion actual se crea al iniciar la aplicacion y se registra aca. */
+    public void setSesionActual(Sesion sesionActual) {
+        this.sesionActual = sesionActual;
     }
 
     public void opRegistrarRecepcionBolsin() {
         getFechaYHoraActual();
     }
 
-    public Usuario buscarUsuarioLogueado() {
-        return usuarioRepository.buscarPorNombre(nombreUsuarioLogueado);
+    /**
+     * Paso 2 del CU 28: le pide getUsuario() a la Sesion actual y recorre los empleados
+     * preguntando *esTuUsuario(usuario). El encontrado es el empleado logueado.
+     */
+    public Empleado buscarUsuarioLogueado() {
+        this.empleadoLogueado = null;
+        if (sesionActual == null) return null;
+        Usuario usuario = sesionActual.getUsuario();
+        for (Empleado empleado : empleadoRepository.obtenerTodos()) {
+            if (empleado.esTuUsuario(usuario)) {
+                this.empleadoLogueado = empleado;
+                break;
+            }
+        }
+        return empleadoLogueado;
     }
 
-    public ComisionMedica getCM() {
-        return buscarUsuarioLogueado().getEmpleado().getComisionMedica();
+    /** Paso 2 del CU 28: le pide getCM() al empleado logueado (nombre de su ComisionMedica). */
+    public String getCM() {
+        return buscarUsuarioLogueado().getCM();
     }
 
+    /**
+     * Paso 3 del CU 28: trae todos los bolsines y los recorre preguntando *sosEnviado()
+     * y esTuCM(cm). El filtro lo hace el dominio, no una consulta a la base.
+     */
     public List<Bolsin> buscarBolsinesEnviados() {
-        return bolsinRepository.obtenerEnviadosHacia(getCM());
+        String cm = getCM();
+        this.bolsinesSeleccionados = new ArrayList<>();
+        for (Bolsin bolsin : bolsinRepository.obtenerTodos()) {
+            if (bolsin.sosEnviado() && bolsin.esTuCM(cm)) {
+                bolsinesSeleccionados.add(bolsin);
+            }
+        }
+        return bolsinesSeleccionados;
     }
 
     public void tomarSeleccionBolsin(int numeroBolsin) {
@@ -64,7 +107,7 @@ public class GestorRecepcionBolsin {
             info.append("Remito #").append(remito.getNumero()).append(" - ");
             info.append("Fecha: ").append(remito.getFecha()).append("\n");
             for (DetalleRemito detalle : remito.getDetalles()) {
-                Documento doc = detalle.getDocumentacion();
+                Documentacion doc = detalle.getDocumentacion();
                 info.append("  Doc #").append(doc.getNumero()).append(": ").append(doc.getAsunto()).append("\n");
             }
         }
@@ -72,23 +115,62 @@ public class GestorRecepcionBolsin {
         return informacionRemito;
     }
 
+    /**
+     * Paso 8 del CU 28: opcion de recepcion elegida. Solo se implementa la opcion 1
+     * ("el contenido del bolsin es igual al registrado"); las otras 3 son de otra tarea.
+     */
     public void tomarOpcionDeRecepcion(int opcion) {
         this.opcionDeRecepcion = opcion;
     }
 
+    /**
+     * Paso 11 del CU 28 (orden del diagrama de secuencia): con la confirmacion (paso 10), el Gestor
+     * obtiene los 3 estados, la fecha/hora actual y registra la recepcion.
+     * Solo sigue con la opcion 1: las otras opciones de recepcion no estan implementadas.
+     */
     public void tomarConfirmacion(boolean confirmado) {
         this.opcionSeleccionada = confirmado ? 1 : 0;
+        if (!confirmado || opcionDeRecepcion != 1) return;
+        obtenerEstadoRecibidoEnCMDestino();
+        obtenerEstadoRecibidoYAceptado();
+        obtenerEstadoRecibidaYAceptada();
+        getFechaYHoraActual();
+        registrarRecepcionBolsin();
     }
 
+    /** Recorre todos los estados preguntando *esAmbitoBolsin() y esEstadoRecibidoEnCMDestino(). */
     public Estado obtenerEstadoRecibidoEnCMDestino() {
+        this.estadoRecibidoEnCMDestino = null;
+        for (Estado estado : estadoRepository.obtenerTodos()) {
+            if (estado.esAmbitoBolsin() && estado.esEstadoRecibidoEnCMDestino()) {
+                this.estadoRecibidoEnCMDestino = estado;
+                break;
+            }
+        }
         return estadoRecibidoEnCMDestino;
     }
 
+    /** Recorre todos los estados preguntando *esAmbitoRemito() y esEstadoRecibidoYAceptado(). */
     public Estado obtenerEstadoRecibidoYAceptado() {
+        this.estadoRecibidoYAceptado = null;
+        for (Estado estado : estadoRepository.obtenerTodos()) {
+            if (estado.esAmbitoRemito() && estado.esEstadoRecibidoYAceptado()) {
+                this.estadoRecibidoYAceptado = estado;
+                break;
+            }
+        }
         return estadoRecibidoYAceptado;
     }
 
+    /** Recorre todos los estados preguntando *esAmbitoDocumentacion() y esEstadoRecibidaYAceptada(). */
     public Estado obtenerEstadoRecibidaYAceptada() {
+        this.estadoRecibidaYAceptada = null;
+        for (Estado estado : estadoRepository.obtenerTodos()) {
+            if (estado.esAmbitoDocumentacion() && estado.esEstadoRecibidaYAceptada()) {
+                this.estadoRecibidaYAceptada = estado;
+                break;
+            }
+        }
         return estadoRecibidaYAceptada;
     }
 
@@ -97,15 +179,18 @@ public class GestorRecepcionBolsin {
         return fechaHoraActual;
     }
 
+    /**
+     * El Bolsin recibe (y en cascada sus remitos y documentacion) con los estados, el empleado
+     * logueado y la fecha/hora del Gestor; despues un solo guardar() persiste todo (cascadas).
+     */
     public void registrarRecepcionBolsin() {
         if (bolsinSeleccionado == null) return;
-        bolsinSeleccionado.setEstado(estadoRecibidoEnCMDestino);
-        bolsinSeleccionado.crearNuevoCEO(estadoRecibidoEnCMDestino, null);
-        aceptarRemitos(bolsinSeleccionado);
+        bolsinSeleccionado.recibir(estadoRecibidoEnCMDestino, estadoRecibidoYAceptado,
+                estadoRecibidaYAceptada, buscarUsuarioLogueado(), fechaHoraActual);
         bolsinRepository.guardar(bolsinSeleccionado);
     }
 
-    public void llamarCU290() {
+    public void llamarCU29() {
     }
 
     public void finCU() {
@@ -129,8 +214,18 @@ public class GestorRecepcionBolsin {
         return bolsinRepository.obtenerComisionesMedicas();
     }
 
+    /**
+     * Pantalla auxiliar: el bolsin nace en Bolsin/Enviado con su cambio de estado inicial,
+     * a cargo del empleado logueado.
+     */
     public void crearBolsin(int numero, String precinto, double peso, ComisionMedica cmOrigen, ComisionMedica cmDestino) {
-        bolsinRepository.crearBolsin(numero, precinto, peso, cmOrigen, cmDestino);
+        Estado estadoEnviado = obtenerEstadoBolsinEnviado();
+        LocalDateTime fechaHora = getFechaYHoraActual();
+        Bolsin bolsin = new Bolsin(numero, cmOrigen, cmDestino, estadoEnviado);
+        bolsin.setNroPrecinto(precinto);
+        bolsin.setPeso(peso);
+        bolsin.crearNuevoCE(estadoEnviado, fechaHora, buscarUsuarioLogueado());
+        bolsinRepository.guardar(bolsin);
     }
 
     public int obtenerSiguienteNumeroBolsin() {
@@ -148,23 +243,67 @@ public class GestorRecepcionBolsin {
     public void crearRemitoConDocumentacion(int bolsinNumero, int remitoNumero,
                                             ComisionMedica cmOrigen, ComisionMedica cmDestino,
                                             String asunto, String descripcion, String tipoDoc) {
-        Estado estadoRem = new Estado("REM", "ENVIADO", "Remito enviado");
-        Estado estadoDoc = new Estado("DOC", "ENVIADA", "Documentación enviada");
+        // Pantalla auxiliar: Remito/Enviado (sin historial) y Documentacion/EnBolsinEnviado
+        // con su cambio de estado inicial a cargo del empleado logueado; tipo desde el catalogo.
+        Estado estadoRem = obtenerEstadoRemitoEnviado();
+        Estado estadoDoc = obtenerEstadoDocumentacionEnBolsinEnviado();
+        LocalDateTime fechaHora = getFechaYHoraActual();
 
         Remito remito = new Remito(remitoNumero, LocalDate.now(), estadoRem, cmOrigen, cmDestino);
 
         int docNumero = obtenerSiguienteNumeroDocumentacion();
-        TipoDocumento tipo = new TipoDocumento(tipoDoc, "Tipo de documento: " + tipoDoc);
-        Documento doc = new Documento(docNumero, asunto, descripcion, estadoDoc, tipo);
+        Documentacion doc = new Documentacion(docNumero, asunto, descripcion, estadoDoc,
+                buscarTipoDocumento(tipoDoc));
+        doc.crearNuevoCE(estadoDoc, fechaHora, buscarUsuarioLogueado());
 
         remito.agregarDetalle(new DetalleRemito(doc));
         bolsinRepository.agregarRemitoABolsin(bolsinNumero, remito);
     }
 
+    // --- Pantallas auxiliares: estados y tipo persistidos (mismo estilo de recorrido que el paso 11).
+
+    private Estado obtenerEstadoBolsinEnviado() {
+        for (Estado estado : estadoRepository.obtenerTodos()) {
+            if (estado.esAmbitoBolsin() && estado.esEnviado()) {
+                return estado;
+            }
+        }
+        return null;
+    }
+
+    private Estado obtenerEstadoRemitoEnviado() {
+        for (Estado estado : estadoRepository.obtenerTodos()) {
+            if (estado.esAmbitoRemito() && estado.esEnviado()) {
+                return estado;
+            }
+        }
+        return null;
+    }
+
+    /** esEnviado() en el ambito DOC es EnBolsinEnviado (DME). */
+    private Estado obtenerEstadoDocumentacionEnBolsinEnviado() {
+        for (Estado estado : estadoRepository.obtenerTodos()) {
+            if (estado.esAmbitoDocumentacion() && estado.esEnviado()) {
+                return estado;
+            }
+        }
+        return null;
+    }
+
+    private TipoDocumento buscarTipoDocumento(String nombre) {
+        for (TipoDocumento tipo : tipoDocumentoRepository.obtenerTodos()) {
+            if (tipo.getNombre().equals(nombre)) {
+                return tipo;
+            }
+        }
+        return null;
+    }
+
     public void crearUsuario(String nombreUsuario, String password,
                              String nombreEmp, String apellidoEmp, String mailEmp, ComisionMedica cm) {
-        Empleado emp = new Empleado(nombreEmp, apellidoEmp, mailEmp, cm);
-        usuarioRepository.crearUsuario(nombreUsuario, password, emp);
+        Usuario usuario = new Usuario(nombreUsuario, password);
+        Empleado emp = new Empleado(nombreEmp, apellidoEmp, mailEmp, cm, usuario);
+        empleadoRepository.guardar(emp);
     }
 
     public ComisionMedica crearComisionMedica(int codigo, String nombre, String direccion, String email, String telefono) {
@@ -175,20 +314,8 @@ public class GestorRecepcionBolsin {
         return bolsinRepository.obtenerTodos();
     }
 
-    public List<Usuario> obtenerTodosUsuarios() {
-        return usuarioRepository.obtenerTodos();
-    }
-
-    private void aceptarRemitos(Bolsin bolsin) {
-        for (Remito remito : bolsin.getRemitos()) {
-            remito.aceptar(null);
-            aceptarDocumentacion(remito);
-        }
-    }
-
-    private void aceptarDocumentacion(Remito remito) {
-        for (DetalleRemito detalle : remito.getDetalles()) {
-            detalle.aceptarDocumentacion(null);
-        }
+    /** Cada Empleado conoce a su Usuario; la pantalla de usuarios lista empleados con su usuario. */
+    public List<Empleado> obtenerTodosEmpleados() {
+        return empleadoRepository.obtenerTodos();
     }
 }

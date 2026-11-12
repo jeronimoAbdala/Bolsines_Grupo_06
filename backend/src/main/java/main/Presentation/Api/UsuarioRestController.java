@@ -21,7 +21,7 @@ public class UsuarioRestController {
 
     @GetMapping
     public List<UsuarioDto> listar() {
-        return controller.obtenerTodosUsuarios().stream().map(UsuarioDto::de).toList();
+        return controller.obtenerTodosEmpleados().stream().map(UsuarioDto::de).toList();
     }
 
     @PostMapping
@@ -31,8 +31,8 @@ public class UsuarioRestController {
         String password = Validar.requerido(req.password(), "password");
         String nombre = Validar.requerido(req.nombre(), "nombre");
         String apellido = Validar.requerido(req.apellido(), "apellido");
-        boolean repetido = controller.obtenerTodosUsuarios().stream()
-                .anyMatch(u -> u.getNombreUsuario().equalsIgnoreCase(nombreUsuario));
+        boolean repetido = controller.obtenerTodosEmpleados().stream()
+                .anyMatch(e -> e.getUsuario().getNombreUsuario().equalsIgnoreCase(nombreUsuario));
         if (repetido) {
             throw ApiException.conflicto("Ya existe el usuario '" + nombreUsuario + "'.");
         }
@@ -43,8 +43,8 @@ public class UsuarioRestController {
                         + req.comisionMedicaCodigo() + "."));
 
         controller.crearUsuario(nombreUsuario, password, nombre, apellido, Validar.opcional(req.mail()), cm);
-        return controller.obtenerTodosUsuarios().stream()
-                .filter(u -> u.getNombreUsuario().equals(nombreUsuario))
+        return controller.obtenerTodosEmpleados().stream()
+                .filter(e -> e.getUsuario().getNombreUsuario().equals(nombreUsuario))
                 .findFirst()
                 .map(UsuarioDto::de)
                 .orElseThrow(() -> new IllegalStateException("El usuario no se guardo."));

@@ -1,26 +1,78 @@
 package main.Domain.Entities;
 
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
+import jakarta.persistence.Table;
+
 import java.io.Serializable;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
 
+@Entity
+@Table(name = "bolsin")
 public class Bolsin implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /** Clave natural asignada: la asigna el sistema (obtenerSiguienteNumeroBolsin). */
+    @Id
+    @Column(name = "numero")
     private int numero;
+
+    @Column(name = "fecha_generacion")
     private LocalDate fechaGeneracion;
+
+    @Column(name = "nro_precinto")
     private String nroPrecinto;
-    private int cantRemitos;
+
+    @Column(name = "peso")
     private double peso;
 
+    /** Estado actual (atributo). Multiplicidad 1. Sin cascada: Estado es un catalogo. */
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "estado_id", nullable = false)
     private Estado estado;
 
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "cm_origen_codigo", nullable = false)
     private ComisionMedica cmOrigen;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "cm_destino_codigo", nullable = false)
     private ComisionMedica cmDestino;
 
-    private ArrayList<Remito> remitos;
-    private ArrayList<CambioEstadoBolsin> cambiosEstado;
+    /**
+     * Composicion Bolsin -> Remito (unidireccional: el remito no conoce a su bolsin).
+     * ALL: los remitos viven y mueren con el bolsin. LAZY (default de @OneToMany).
+     * La FK bolsin_numero queda en la tabla remito; NOT NULL porque es composicion (un remito
+     * siempre pertenece a un bolsin).
+     */
+    @OneToMany(cascade = CascadeType.ALL)
+    @JoinColumn(name = "bolsin_numero", nullable = false)
+    @OrderBy("numero")
+    private List<Remito> remitos = new ArrayList<>();
+
+    /**
+     * Historial de cambios de estado (unidireccional: el cambio no conoce a su bolsin).
+     * ALL: el historial vive y muere con el bolsin. LAZY (default de @OneToMany).
+     * La FK bolsin_numero queda en la tabla cambio_estado_bolsin.
+     */
+    @OneToMany(cascade = CascadeType.ALL)
+    @JoinColumn(name = "bolsin_numero", nullable = false)
+    @OrderBy("fechaHoraInicio")
+    private List<CambioEstadoBolsin> cambiosEstado = new ArrayList<>();
+
+    /** Requerido por JPA. */
+    protected Bolsin() {
+    }
 
     public Bolsin(int numero,
                   ComisionMedica cmOrigen,
@@ -31,34 +83,68 @@ public class Bolsin implements Serializable {
         this.cmDestino = cmDestino;
         this.estado = estado;
         this.fechaGeneracion = LocalDate.now();
-        this.remitos = new ArrayList<>();
-        this.cambiosEstado = new ArrayList<>();
-        this.cantRemitos = 0;
+    }
+
+    /** Igual al anterior, pero con la fecha de generacion dada (la usan los datos de prueba). */
+    public Bolsin(int numero,
+                  ComisionMedica cmOrigen,
+                  ComisionMedica cmDestino,
+                  Estado estado,
+                  LocalDate fechaGeneracion) {
+        this.numero = numero;
+        this.cmOrigen = cmOrigen;
+        this.cmDestino = cmDestino;
+        this.estado = estado;
+        this.fechaGeneracion = fechaGeneracion;
     }
 
     public void agregarRemito(Remito remito) {
         remitos.add(remito);
-        cantRemitos = remitos.size();
     }
 
     public void agregarCambioEstado(CambioEstadoBolsin cambio) {
         cambiosEstado.add(cambio);
     }
 
+    /**
+     * Paso 3 del CU 28 (por historial): busca el cambio de estado actual (*sosActual)
+     * y le pregunta sosEnviado(); ese cambio se lo pregunta a su Estado (esEnviado).
+     */
     public boolean sosEnviado() {
-        return estado != null && estado.esEnviado() && estado.esAmbitoBolsin();
+        for (CambioEstadoBolsin cambio : cambiosEstado) {
+            if (cambio.sosActual()) {
+                return cambio.sosEnviado();
+            }
+        }
+        return false;
     }
 
-    public boolean esTuCM(ComisionMedica cm) {
-        return cmDestino != null && cmDestino.getNombre().equals(cm.getNombre());
+    /** Paso 3 del CU 28: compara por nombre la CM destino con la CM del empleado logueado. */
+    public boolean esTuCM(String nombreCM) {
+        return cmDestino != null && cmDestino.getNombre().equals(nombreCM);
     }
 
     public boolean esTuNumero(int numero) {
         return this.numero == numero;
     }
 
-    public String mostrarRecibido() {
-        return "Bolsin #" + numero + " - Estado: " + estado.getNombre();
+    /**
+     * Paso 11 del CU 28 (antes mostrarRecibido). Orden del diagrama de secuencia:
+     * PRIMERO *aceptar() en cada remito; DESPUES el bolsin: setEstado(),
+     * *sosActual() -> setFechaHoraFin() al actual, crearNuevoCE().
+     */
+    public void recibir(Estado estadoRecibidoEnCMDestino, Estado estadoRecibidoYAceptado,
+                        Estado estadoRecibidaYAceptada, Empleado empleado, LocalDateTime fechaHora) {
+        for (Remito remito : remitos) {
+            remito.aceptar(estadoRecibidoYAceptado, estadoRecibidaYAceptada, empleado, fechaHora);
+        }
+        setEstado(estadoRecibidoEnCMDestino);
+        for (CambioEstadoBolsin cambio : cambiosEstado) {
+            if (cambio.sosActual()) {
+                cambio.setFechaHoraFin(fechaHora);
+            }
+        }
+        crearNuevoCE(estadoRecibidoEnCMDestino, fechaHora, empleado);
     }
 
     public String obtenerInformacionRemito() {
@@ -69,8 +155,8 @@ public class Bolsin implements Serializable {
         return info.toString();
     }
 
-    public CambioEstadoBolsin crearNuevoCEO(Estado nuevoEstado, Empleado empleado) {
-        CambioEstadoBolsin cambio = new CambioEstadoBolsin(nuevoEstado, empleado);
+    public CambioEstadoBolsin crearNuevoCE(Estado estado, LocalDateTime fechaHora, Empleado empleado) {
+        CambioEstadoBolsin cambio = new CambioEstadoBolsin(estado, fechaHora, empleado);
         agregarCambioEstado(cambio);
         return cambio;
     }
@@ -91,10 +177,6 @@ public class Bolsin implements Serializable {
         this.nroPrecinto = nroPrecinto;
     }
 
-    public int getCantRemitos() {
-        return cantRemitos;
-    }
-
     public double getPeso() {
         return peso;
     }
@@ -111,11 +193,11 @@ public class Bolsin implements Serializable {
         return cmDestino;
     }
 
-    public ArrayList<Remito> getRemitos() {
+    public List<Remito> getRemitos() {
         return remitos;
     }
 
-    public ArrayList<CambioEstadoBolsin> getCambiosEstado() {
+    public List<CambioEstadoBolsin> getCambiosEstado() {
         return cambiosEstado;
     }
 

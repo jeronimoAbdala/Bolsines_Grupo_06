@@ -2,9 +2,10 @@ package main.Presentation.Api;
 
 import main.Controllers.RecepcionBolsinController;
 import main.Domain.Entities.Bolsin;
-import main.Domain.Entities.Usuario;
+import main.Domain.Entities.Empleado;
 import main.Presentation.Api.Dto.BolsinDto;
 import main.Presentation.Api.Dto.DetalleRecepcionDto;
+import main.Presentation.Api.Dto.Requests;
 import main.Presentation.Api.Dto.UsuarioDto;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,14 +29,14 @@ public class RecepcionRestController {
     /** Usuario logueado y su comision medica (mostrarCM). */
     @GetMapping("/sesion")
     public UsuarioDto sesion() {
-        Usuario usuario = controller.buscarUsuarioLogueado();
-        if (usuario == null) {
+        Empleado empleadoLogueado = controller.buscarUsuarioLogueado();
+        if (empleadoLogueado == null) {
             throw ApiException.noEncontrado("No se encontro el usuario logueado.");
         }
-        return UsuarioDto.de(usuario);
+        return UsuarioDto.de(empleadoLogueado);
     }
 
-    /** Bolsines en estado ENVIADO hacia la CM del usuario (mostrarBolsinesParaSeleccion). */
+    /** Bolsines en estado Enviado hacia la CM del usuario (mostrarBolsinesParaSeleccion). */
     @GetMapping("/bolsines")
     public List<BolsinDto> bolsinesEnviados() {
         return controller.buscarBolsinesEnviados().stream().map(BolsinDto::de).toList();
@@ -51,12 +52,22 @@ public class RecepcionRestController {
         }
     }
 
-    /** Opcion "Recibir" confirmada: cambia estados en cascada y persiste (registrarRecepcion). */
+    /**
+     * Opcion de recepcion elegida (paso 8) y confirmada (paso 10): cambia estados en cascada y
+     * persiste. Solo la opcion 1 esta implementada; con otra opcion responde un error sin cambiar nada.
+     */
     @PostMapping("/bolsines/{numero}/recibir")
-    public BolsinDto recibir(@PathVariable int numero) {
+    public BolsinDto recibir(@PathVariable int numero, @RequestBody Requests.RecibirBolsin req) {
+        int opcion = req.opcion();
+        if (opcion < 1 || opcion > 4) {
+            throw ApiException.invalido("Opcion de recepcion invalida: " + opcion + ". Valores: 1 a 4.");
+        }
+        if (opcion != 1) {
+            throw ApiException.noImplementado("Opcion de recepcion no implementada: " + opcion + ".");
+        }
         synchronized (controller) {
             buscarPendiente(numero);
-            controller.registrarRecepcion(numero);
+            controller.registrarRecepcion(numero, opcion);
             return BolsinDto.de(controller.buscarBolsinPorNumero(numero));
         }
     }
