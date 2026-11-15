@@ -16,13 +16,9 @@ public interface BolsinRepository {
 
     List<Bolsin> obtenerTodos();
 
-    List<Bolsin> obtenerEnviadosHacia(ComisionMedica cmDestino);
-
     List<ComisionMedica> obtenerComisionesMedicas();
 
     ComisionMedica crearComisionMedica(int codigo, String nombre, String direccion, String email, String telefono);
-
-    void crearBolsin(int numero, String precinto, double peso, ComisionMedica cmOrigen, ComisionMedica cmDestino);
 
     void agregarRemitoABolsin(int bolsinNumero, Remito remito);
 

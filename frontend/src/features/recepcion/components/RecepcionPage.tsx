@@ -3,6 +3,7 @@ import { Alert, PageHeader } from '@/shared/components';
 import { errorMessage } from '@/shared/utils/errorMessage';
 import type { Bolsin } from '@/features/bolsines';
 import { useRecibirBolsin } from '../hooks/useRecepcion';
+import type { OpcionRecepcion } from '../types/recepcion.types';
 import { BolsinesPendientesTable } from './BolsinesPendientesTable';
 import { ConfirmarRecepcionModal } from './ConfirmarRecepcionModal';
 import { DetalleRemitoPanel } from './DetalleRemitoPanel';
@@ -12,7 +13,7 @@ import { SesionCard } from './SesionCard';
 /** CU 28 - Registrar recepcion de bolsin. */
 export const RecepcionPage = () => {
   const [seleccionado, setSeleccionado] = useState<number | null>(null);
-  const [confirmando, setConfirmando] = useState<number | null>(null);
+  const [confirmando, setConfirmando] = useState<{ numero: number; opcion: OpcionRecepcion } | null>(null);
   const [recibido, setRecibido] = useState<Bolsin | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const recibir = useRecibirBolsin();
@@ -20,6 +21,17 @@ export const RecepcionPage = () => {
   const seleccionar = (numero: number) => {
     setAviso(null);
     setSeleccionado(numero);
+  };
+
+  // Paso 8: opcion elegida. Solo la 1 sigue a la confirmacion (paso 9); las otras (A3, A4, A5) no estan implementadas.
+  const continuar = (opcion: OpcionRecepcion) => {
+    if (seleccionado === null) return;
+    if (opcion !== 1) {
+      setAviso('Opción no implementada');
+      return;
+    }
+    setAviso(null);
+    setConfirmando({ numero: seleccionado, opcion });
   };
 
   const confirmar = () => {
@@ -34,6 +46,7 @@ export const RecepcionPage = () => {
     });
   };
 
+  // Flujo alternativo A6: el usuario no confirma la seleccion.
   const cancelar = () => {
     setConfirmando(null);
     recibir.reset();
@@ -49,14 +62,10 @@ export const RecepcionPage = () => {
       {aviso && <Alert tone="info">{aviso}</Alert>}
       <div className="grid-recepcion">
         <BolsinesPendientesTable seleccionado={seleccionado} onSeleccionar={seleccionar} />
-        <DetalleRemitoPanel
-          numero={seleccionado}
-          onRecibir={() => setConfirmando(seleccionado)}
-          onRechazar={() => setAviso('El rechazo de un bolsin se resuelve en otro caso de uso y todavia no esta implementado.')}
-        />
+        <DetalleRemitoPanel numero={seleccionado} onContinuar={continuar} />
       </div>
       <ConfirmarRecepcionModal
-        numero={confirmando}
+        numero={confirmando?.numero ?? null}
         loading={recibir.isPending}
         error={recibir.error ? errorMessage(recibir.error) : null}
         onConfirmar={confirmar}

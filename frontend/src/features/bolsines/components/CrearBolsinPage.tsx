@@ -31,7 +31,7 @@ export const CrearBolsinPage = () => {
 
   return (
     <>
-      <PageHeader title="Nuevo bolsin" subtitle="El bolsin se crea en estado ENVIADO con un numero automatico." />
+      <PageHeader title="Nuevo bolsin" subtitle="El bolsin se crea en estado Enviado con un numero automatico." />
       <Card>
         <form className="form" onSubmit={enviar}>
           <Field label="Precinto" htmlFor="precinto">

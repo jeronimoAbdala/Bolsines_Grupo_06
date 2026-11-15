@@ -1,17 +1,23 @@
+import { useEffect, useState } from 'react';
 import { Alert, Button, Card, EmptyState, Spinner } from '@/shared/components';
 import { errorMessage } from '@/shared/utils/errorMessage';
 import { formatPeso } from '@/shared/utils/format';
 import { useDetalleRecepcion } from '../hooks/useRecepcion';
+import { OPCIONES_RECEPCION, type OpcionRecepcion } from '../types/recepcion.types';
 import { RemitosList } from './RemitosList';
 
 interface DetalleRemitoPanelProps {
   numero: number | null;
-  onRecibir: () => void;
-  onRechazar: () => void;
+  /** Pasos 7 y 8 del CU 28: se muestran las opciones de recepcion y el usuario elige una y continua. */
+  onContinuar: (opcion: OpcionRecepcion) => void;
 }
 
-export const DetalleRemitoPanel = ({ numero, onRecibir, onRechazar }: DetalleRemitoPanelProps) => {
+export const DetalleRemitoPanel = ({ numero, onContinuar }: DetalleRemitoPanelProps) => {
   const { data, isFetching, error } = useDetalleRecepcion(numero);
+  const [opcion, setOpcion] = useState<OpcionRecepcion | null>(null);
+
+  // Al cambiar de bolsin, la opcion elegida se limpia.
+  useEffect(() => setOpcion(null), [numero]);
 
   if (numero === null) {
     return (
@@ -34,9 +40,25 @@ export const DetalleRemitoPanel = ({ numero, onRecibir, onRechazar }: DetalleRem
             <div><dt>Peso</dt><dd>{formatPeso(data.bolsin.peso)}</dd></div>
           </dl>
           <RemitosList remitos={data.bolsin.remitos} />
+          <fieldset className="opciones-recepcion">
+            <legend>Opcion de recepcion</legend>
+            {OPCIONES_RECEPCION.map((o) => (
+              <label key={o.valor}>
+                <input
+                  type="radio"
+                  name="opcion-recepcion"
+                  value={o.valor}
+                  checked={opcion === o.valor}
+                  onChange={() => setOpcion(o.valor)}
+                />
+                <span>{o.valor}. {o.texto}</span>
+              </label>
+            ))}
+          </fieldset>
           <div className="acciones">
-            <Button variant="danger" onClick={onRechazar}>Rechazar</Button>
-            <Button variant="success" onClick={onRecibir}>Recibir bolsin</Button>
+            <Button variant="primary" onClick={() => opcion !== null && onContinuar(opcion)} disabled={opcion === null}>
+              Continuar
+            </Button>
           </div>
         </>
       )}

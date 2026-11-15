@@ -23,6 +23,10 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.CONFLICT, mensaje);
     }
 
+    public static ApiException noImplementado(String mensaje) {
+        return new ApiException(HttpStatus.NOT_IMPLEMENTED, mensaje);
+    }
+
     public HttpStatus getStatus() {
         return status;
     }

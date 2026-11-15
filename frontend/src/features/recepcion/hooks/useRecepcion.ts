@@ -34,6 +34,7 @@ export const useDetalleRecepcion = (numero: number | null) =>
 export const useRecibirBolsin = () => {
   const queryClient = useQueryClient();
   return useMutation({
+    // Recibe { numero, opcion }: la opcion de recepcion elegida en el paso 8.
     mutationFn: recepcionService.recibir,
     // No se invalida el detalle: el bolsin recibido ya no esta pendiente y la consulta daria 409.
     onSuccess: () => {

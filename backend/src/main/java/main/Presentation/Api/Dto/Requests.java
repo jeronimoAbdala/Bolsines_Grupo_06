@@ -14,6 +14,10 @@ public final class Requests {
     public record CrearRemito(String asunto, String descripcion, String tipoDocumento) {
     }
 
+    /** Paso 8 del CU 28: opcion de recepcion elegida por el usuario (1 a 4, segun la ERS). */
+    public record RecibirBolsin(int opcion) {
+    }
+
     public record CrearComisionMedica(int codigo, String nombre, String direccion, String email, String telefono) {
     }
 

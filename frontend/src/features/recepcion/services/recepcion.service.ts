@@ -1,7 +1,7 @@
 import { api } from '@/shared/lib/axios';
 import type { Bolsin } from '@/features/bolsines';
 import type { Usuario } from '@/features/usuarios';
-import type { DetalleRecepcion } from '../types/recepcion.types';
+import type { DetalleRecepcion, OpcionRecepcion } from '../types/recepcion.types';
 
 export const recepcionService = {
   getSesion: async (): Promise<Usuario> => {
@@ -19,8 +19,8 @@ export const recepcionService = {
     return data;
   },
 
-  recibir: async (numero: number): Promise<Bolsin> => {
-    const { data } = await api.post<Bolsin>(`/recepcion/bolsines/${numero}/recibir`);
+  recibir: async ({ numero, opcion }: { numero: number; opcion: OpcionRecepcion }): Promise<Bolsin> => {
+    const { data } = await api.post<Bolsin>(`/recepcion/bolsines/${numero}/recibir`, { opcion });
     return data;
   },
 };

@@ -2,7 +2,7 @@ package main.Controllers;
 
 import main.Domain.Entities.Bolsin;
 import main.Domain.Entities.ComisionMedica;
-import main.Domain.Entities.Usuario;
+import main.Domain.Entities.Empleado;
 import main.Gestores.GestorRecepcionBolsin;
 
 import java.util.List;
@@ -15,7 +15,7 @@ public class RecepcionBolsinController {
         this.gestor = gestor;
     }
 
-    public Usuario buscarUsuarioLogueado() {
+    public Empleado buscarUsuarioLogueado() {
         return gestor.buscarUsuarioLogueado();
     }
 
@@ -35,9 +35,15 @@ public class RecepcionBolsinController {
         gestor.tomarSeleccionBolsin(numero);
     }
 
-    public void registrarRecepcion(int numeroBolsin) {
+    /**
+     * Opcion de recepcion elegida por el usuario y confirmada. Se vuelve a tomar la seleccion
+     * para trabajar con el bolsin cargado en este request. Secuencia: tomarOpcionDeRecepcion ->
+     * (solicitarConfirmacion en la pantalla) -> tomarConfirmacion (paso 10), que dispara el paso 11.
+     */
+    public void registrarRecepcion(int numeroBolsin, int opcion) {
         gestor.tomarSeleccionBolsin(numeroBolsin);
-        gestor.registrarRecepcionBolsin();
+        gestor.tomarOpcionDeRecepcion(opcion);
+        gestor.tomarConfirmacion(true);
     }
 
     public List<ComisionMedica> obtenerComisionesMedicas() {
@@ -78,7 +84,7 @@ public class RecepcionBolsinController {
         return gestor.obtenerTodosBolsines();
     }
 
-    public List<Usuario> obtenerTodosUsuarios() {
-        return gestor.obtenerTodosUsuarios();
+    public List<Empleado> obtenerTodosEmpleados() {
+        return gestor.obtenerTodosEmpleados();
     }
 }

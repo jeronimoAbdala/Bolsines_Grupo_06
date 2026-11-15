@@ -1,19 +1,38 @@
 package main.Domain.Entities;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
 import java.io.Serializable;
 import java.time.LocalDate;
 
+/**
+ * Usuario del sistema. No conoce a su Empleado: la navegacion es Empleado -> Usuario.
+ */
+@Entity
+@Table(name = "usuario")
 public class Usuario implements Serializable {
 
+    /** Clave natural: el nombre de usuario. */
+    @Id
+    @Column(name = "nombre_usuario")
     private String nombre;
-    private String password;
-    private LocalDate fechaAlta;
-    private Empleado empleado;
 
-    public Usuario(String nombre, String password, Empleado empleado) {
+    @Column(name = "password", nullable = false)
+    private String password;
+
+    @Column(name = "fecha_alta")
+    private LocalDate fechaAlta;
+
+    /** Requerido por JPA. */
+    protected Usuario() {
+    }
+
+    public Usuario(String nombre, String password) {
         this.nombre = nombre;
         this.password = password;
-        this.empleado = empleado;
         this.fechaAlta = LocalDate.now();
     }
 
@@ -21,7 +40,7 @@ public class Usuario implements Serializable {
         return nombre;
     }
 
-    public Empleado getEmpleado() {
-        return empleado;
+    public LocalDate getFechaAlta() {
+        return fechaAlta;
     }
 }
