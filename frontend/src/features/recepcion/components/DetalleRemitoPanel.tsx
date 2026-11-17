@@ -1,23 +1,19 @@
-import { useEffect, useState } from 'react';
-import { Alert, Button, Card, EmptyState, Spinner } from '@/shared/components';
+import type { ReactNode } from 'react';
+import { Alert, Card, EmptyState, Spinner } from '@/shared/components';
 import { errorMessage } from '@/shared/utils/errorMessage';
 import { formatPeso } from '@/shared/utils/format';
 import { useDetalleRecepcion } from '../hooks/useRecepcion';
-import { OPCIONES_RECEPCION, type OpcionRecepcion } from '../types/recepcion.types';
-import { DatosRemito } from './DatosRemito';
 
 interface DetalleRemitoPanelProps {
   numero: number | null;
-  /** Pasos 7 y 8 del CU 28: se muestran las opciones de recepcion y el usuario elige una y continua. */
-  onContinuar: (opcion: OpcionRecepcion) => void;
+  /** mostrarDatosRemito() de la Pantalla (paso 6). */
+  mostrarDatosRemito: (informacionRemito: string) => ReactNode;
+  /** mostrarOpcionesRecepcion() de la Pantalla (paso 7). */
+  mostrarOpcionesRecepcion: () => ReactNode;
 }
 
-export const DetalleRemitoPanel = ({ numero, onContinuar }: DetalleRemitoPanelProps) => {
+export const DetalleRemitoPanel = ({ numero, mostrarDatosRemito, mostrarOpcionesRecepcion }: DetalleRemitoPanelProps) => {
   const { data, isFetching, error } = useDetalleRecepcion(numero);
-  const [opcion, setOpcion] = useState<OpcionRecepcion | null>(null);
-
-  // Al cambiar de bolsin, la opcion elegida se limpia.
-  useEffect(() => setOpcion(null), [numero]);
 
   if (numero === null) {
     return (
@@ -40,28 +36,9 @@ export const DetalleRemitoPanel = ({ numero, onContinuar }: DetalleRemitoPanelPr
             <div><dt>Peso</dt><dd>{formatPeso(data.bolsin.peso)}</dd></div>
           </dl>
           {/* Paso 6 (mostrarDatosRemito): remitos y documentaciones armados por el Iterator en el backend. */}
-          <DatosRemito informacionRemito={data.informacionRemito} />
+          {mostrarDatosRemito(data.informacionRemito)}
           {/* Paso 7 (mostrarOpcionesRecepcion): las 4 opciones de recepcion, despues de los datos. */}
-          <fieldset className="opciones-recepcion">
-            <legend>Opcion de recepcion</legend>
-            {OPCIONES_RECEPCION.map((o) => (
-              <label key={o.valor}>
-                <input
-                  type="radio"
-                  name="opcion-recepcion"
-                  value={o.valor}
-                  checked={opcion === o.valor}
-                  onChange={() => setOpcion(o.valor)}
-                />
-                <span>{o.valor}. {o.texto}</span>
-              </label>
-            ))}
-          </fieldset>
-          <div className="acciones">
-            <Button variant="primary" onClick={() => opcion !== null && onContinuar(opcion)} disabled={opcion === null}>
-              Continuar
-            </Button>
-          </div>
+          {mostrarOpcionesRecepcion()}
         </>
       )}
     </Card>

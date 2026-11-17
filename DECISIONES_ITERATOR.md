@@ -636,3 +636,40 @@ Remito #501
 | ~~6~~ | ~~Parte 2b, frontend: formulario de varias documentaciones~~ — **no se hace** (7.3.1) | — |
 | 7 | Docs: README (A1/A2 en la demo, datos de prueba nuevos, borrar `backend/db/`; **sin** mencionar que la pantalla carga varias documentaciones), `CASO_DE_USO_RECEPCION.md` (paso 4, A1/A2, ejemplo del Iterator), `ARQUITECTURA.md` si hace falta | — |
 | 8 | Verificación final: `mvn test`, `tsc -b`, `vite build`; backend con base temporal (GET 1001 con 3 documentaciones en el 500; "Agregar remito" con una documentación al 1002 y GET 1002); `backend/db/` sin cambios; bitácora | — |
+
+### 7.6 Pantalla según el diagrama de secuencia
+
+**Objetivo**: que la pantalla del CU 28 del frontend tenga los nombres y mensajes de `PantallaRegistrarRecepcionBolsin` del diagrama de secuencia corregido por el profesor. Solo frontend; sin cambiar comportamiento, estilos, endpoints, `useRecepcion.ts`, services ni types. El backend no se tocó.
+
+**Decisiones (aprobadas)**
+
+| # | Decisión |
+|---|---|
+| 1 | `components/RecepcionPage.tsx` se renombró a `components/PantallaRegistrarRecepcionBolsin.tsx` (componente `PantallaRegistrarRecepcionBolsin`). La ruta `/recepcion` y el texto del menú no cambian. Se actualizaron `index.ts` y el router |
+| 2 | Funciones de acción: `seleccionar` → `tomarSeleccionBolsin(numero)` (con parámetro, igual que P1), `continuar` → `tomarOpcionDeRecepcion`, `confirmar` → `tomarConfirmacion`, `cancelar` → `tomarCancelacion` (flujo alternativo A6) |
+| 3 | Inicio del CU: el componente devuelve `opcRegistrarRecepcionBolsin()`, que llama a `habilitarVentana()`, la que arma la ventana. Abrir la ventana = dibujar el componente: los datos los sigue trayendo React Query al montarse cada parte. No se tocó el Layout ni el menú |
+| 4 | Mensajes a la Pantalla como funciones con ese nombre, cada una devuelve su parte de la interfaz: `mostrarCM()` (`SesionCard`), `mostrarBolsinesParaSeleccion()` (`BolsinesPendientesTable`), `mostrarCMOrigen(bolsin)` y `mostrarNroPrecinto(bolsin)` (celdas Origen y Precinto), `solicitarSeleccionBolsin()` (deja seleccionar las filas: `seleccionado` + `onSeleccionar`), `mostrarDatosRemito(informacionRemito)` (`DatosRemito`), `mostrarOpcionesRecepcion()` (las 4 opciones + Continuar), `solicitarConfirmacion()` (`ConfirmarRecepcionModal`), `informarRecepcion()` (`RecepcionExitosaModal`) |
+| 5 | Los mensajes que vivían dentro de un hijo pasan a la Pantalla y llegan al hijo por props: la tabla recibe `mostrarCMOrigen` y `mostrarNroPrecinto`; `DetalleRemitoPanel` recibe `mostrarDatosRemito` y `mostrarOpcionesRecepcion` (en lugar de `onContinuar`) y los llama donde antes dibujaba eso, solo con los datos cargados. El estado `opcion` y su `useEffect` (limpiar al cambiar de bolsín) pasan a la Pantalla con la misma dependencia (`seleccionado`). No se crearon ni borraron componentes; el filtro (`FiltroBolsines`) no se tocó |
+| 6 | Los nombres salen del diagrama de secuencia corregido por el profesor. El `.drawio` del repo solo tiene la "Secuencia con Iterator (pasos 5 a 10)" |
+| 7 | ⚠️ **A corregir en el diagrama de clases**: `opcRegistrarRecepcionBolsin` figura como **atributo** de la Pantalla (`- opcRegistrarRecepcionBolsin: int`); en la secuencia es un **mensaje** y en el código es una función |
+
+**Mensaje → función (en `PantallaRegistrarRecepcionBolsin.tsx`)**
+
+| Mensaje | Paso ERS |
+|---|---|
+| `opcRegistrarRecepcionBolsin()`, `habilitarVentana()` | 1 |
+| `mostrarCM()` | 2 |
+| `mostrarBolsinesParaSeleccion()`, `mostrarCMOrigen()`, `mostrarNroPrecinto()`, `solicitarSeleccionBolsin()` | 4 |
+| `tomarSeleccionBolsin()` | 5 |
+| `mostrarDatosRemito()` | 6 |
+| `mostrarOpcionesRecepcion()` | 7 |
+| `tomarOpcionDeRecepcion()` | 8 (A3, A4, A5: "Opción no implementada") |
+| `solicitarConfirmacion()` | 9 |
+| `tomarConfirmacion()` | 10 |
+| `tomarCancelacion()` | A6 |
+| `informarRecepcion()` | 12 |
+
+**Bitácora**
+- Frontend: archivo renombrado (sin git), `index.ts`, `router/index.tsx`, `BolsinesPendientesTable.tsx` (props `mostrarCMOrigen`/`mostrarNroPrecinto`), `DetalleRemitoPanel.tsx` (props `mostrarDatosRemito`/`mostrarOpcionesRecepcion`; se le quitó el estado `opcion`), `DatosRemito.tsx` (solo comentario).
+- Docs: `CASO_DE_USO_RECEPCION.md` (cadena de clases, pasos 1, 2, 4, 5, 6, 7, 8, 9, 10 y 12, flujos A3–A6). `README.md`, `ARQUITECTURA.md` y `DECISIONES_ORM.md` sin cambios (decisión del usuario).
+- Verificación: `npx tsc -b` OK y `npx vite build` OK (178 módulos). Archivos en CRLF.
