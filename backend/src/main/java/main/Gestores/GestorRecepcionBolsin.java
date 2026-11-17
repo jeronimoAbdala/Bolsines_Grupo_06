@@ -93,26 +93,26 @@ public class GestorRecepcionBolsin {
         return bolsinesSeleccionados;
     }
 
+    /**
+     * Paso 5 del CU 28: busca el bolsin seleccionado y se pide a si mismo obtenerInformacionRemito()
+     * (paso 6). El numero llega de la pantalla (en el diagrama la seleccion no lleva parametro).
+     */
     public void tomarSeleccionBolsin(int numeroBolsin) {
         this.bolsinSeleccionado = bolsinRepository.buscarPorNumero(numeroBolsin);
+        obtenerInformacionRemito();
     }
 
-    public String obtenerInformacionRemito() {
-        if (bolsinSeleccionado == null) return "";
-        StringBuilder info = new StringBuilder();
-        info.append("Origen: ").append(bolsinSeleccionado.getCmOrigen().getNombre()).append("\n");
-        info.append("Precinto: ").append(bolsinSeleccionado.getNroPrecinto() != null
-                ? bolsinSeleccionado.getNroPrecinto() : "N/A").append("\n");
-        for (Remito remito : bolsinSeleccionado.getRemitos()) {
-            info.append("Remito #").append(remito.getNumero()).append(" - ");
-            info.append("Fecha: ").append(remito.getFecha()).append("\n");
-            for (DetalleRemito detalle : remito.getDetalles()) {
-                Documentacion doc = detalle.getDocumentacion();
-                info.append("  Doc #").append(doc.getNumero()).append(": ").append(doc.getAsunto()).append("\n");
-            }
+    /**
+     * Paso 6 del CU 28: el Gestor es cliente del agregado. Le delega al bolsin seleccionado
+     * obtenerInformacionRemito() y guarda el resultado en informacionRemito; no conoce la coleccion
+     * de remitos ni los iteradores (los crea y los usa el propio Bolsin, y cada Remito el suyo).
+     */
+    public void obtenerInformacionRemito() {
+        if (bolsinSeleccionado == null) {
+            this.informacionRemito = "";
+            return;
         }
-        this.informacionRemito = info.toString();
-        return informacionRemito;
+        this.informacionRemito = bolsinSeleccionado.obtenerInformacionRemito();
     }
 
     /**

@@ -30,7 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * CU 28 de punta a punta, sin tocar la base de archivo: API REST -> Controller -> Gestor -> repositorios -> Hibernate -> H2 en memoria.
  * Los metodos corren EN ORDEN y comparten la misma base: primero se verifica el estado inicial,
- * despues se recibe el 1001 y al final se verifica el historial.
+ * despues se recibe el 1001 y se verifica el historial; al final, la pantalla auxiliar "Agregar remito"
+ * (sobre el 1002, despues de las verificaciones que lo miran).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -82,11 +83,18 @@ class RecepcionBolsinFlujoTest {
     @Test
     @Order(4)
     void paso5y6_remitosYDocumentacionDelBolsinSeleccionado() throws Exception {
+        // informacionRemito es lo que armo el Iterator (Bolsin -> Remito -> DetalleRemito) con los datos de prueba.
+        // El remito 500 tiene 3 documentaciones de tipos distintos: el loop Detalles da 3 vueltas en el 500 y 1 en el 501.
         mvc.perform(get(BASE + "/bolsines/1001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.bolsin.cantRemitos", is(2)))
-                .andExpect(jsonPath("$.informacionRemito", containsString("Remito #500")))
-                .andExpect(jsonPath("$.informacionRemito", containsString("Remito #501")));
+                .andExpect(jsonPath("$.informacionRemito", is(
+                        "Remito #500\n"
+                                + "  Asunto: Expediente-cardiológico | Tipo: EXPEDIENTE\n"
+                                + "  Asunto: Informe-electrocardiograma | Tipo: INFORME\n"
+                                + "  Asunto: Certificado-de-aptitud | Tipo: CERTIFICADO\n"
+                                + "Remito #501\n"
+                                + "  Asunto: Estudios-complementarios | Tipo: EXPEDIENTE\n")));
     }
 
     @Test
@@ -141,7 +149,8 @@ class RecepcionBolsinFlujoTest {
     @Test
     @Order(8)
     void paso11_historialDeLaDocumentacionYEstadoDeLosRemitos() {
-        for (int doc : new int[]{1, 2}) {
+        // Documentaciones del 1001: 1, 2 y 3 (remito 500) y 4 (remito 501).
+        for (int doc : new int[]{1, 2, 3, 4}) {
             List<Map<String, Object>> cambios = jdbc.queryForList("""
                     select e.nombre as estado, ce.fecha_hora_fin as fin,
                            emp.nombre || ' ' || emp.apellido as responsable
@@ -160,10 +169,10 @@ class RecepcionBolsinFlujoTest {
         assertThat(jdbc.queryForList("""
                 select e.nombre from remito r join estado e on e.id = r.estado_id
                 where r.bolsin_numero = 1001""", String.class)).containsOnly("RecibidoYAceptado");
-        // El 1002 no se toco.
+        // El 1002 no se toco (su documentacion es la 5).
         assertThat(estadoDelBolsin(1002)).isEqualTo("Enviado");
         assertThat(jdbc.queryForObject(
-                "select count(*) from cambio_estado_documentacion where documentacion_numero = 3", Integer.class))
+                "select count(*) from cambio_estado_documentacion where documentacion_numero = 5", Integer.class))
                 .isEqualTo(1);
     }
 
@@ -176,6 +185,70 @@ class RecepcionBolsinFlujoTest {
                 .andExpect(jsonPath("$[0].numero", is(1002)));
         mvc.perform(get(BASE + "/bolsines/1001"))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    @Order(10)
+    void agregarRemito_conUnaDocumentacion() throws Exception {
+        // Pantalla auxiliar "Agregar remito": un remito con una documentacion en el 1002.
+        // El tipo se acepta en minusculas (la API lo pasa a mayusculas).
+        mvc.perform(post("/api/bolsines/1002/remitos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"asunto\": \"Informe-de-alta\", \"descripcion\": \"Alta medica\", "
+                                + "\"tipoDocumento\": \"informe\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cantRemitos", is(2)))
+                .andExpect(jsonPath("$.remitos[1].numero", is(503)))
+                .andExpect(jsonPath("$.remitos[1].estado", is("Enviado")))
+                .andExpect(jsonPath("$.remitos[1].documentos", hasSize(1)))
+                .andExpect(jsonPath("$.remitos[1].documentos[0].numero", is(6)))
+                .andExpect(jsonPath("$.remitos[1].documentos[0].tipo", is("INFORME")))
+                .andExpect(jsonPath("$.remitos[1].documentos[0].estado", is("EnBolsinEnviado")));
+
+        // Un DetalleRemito que apunta a la Documentacion 6, con su cambio de estado inicial a cargo del empleado logueado.
+        assertThat(jdbc.queryForList(
+                "select documentacion_numero from detalle_remito where remito_numero = 503", Integer.class))
+                .containsExactly(6);
+        List<Map<String, Object>> cambios = jdbc.queryForList("""
+                select e.nombre as estado, ce.fecha_hora_fin as fin,
+                       emp.nombre || ' ' || emp.apellido as responsable
+                from cambio_estado_documentacion ce
+                join estado e on e.id = ce.estado_id
+                join empleado emp on emp.id = ce.empleado_id
+                where ce.documentacion_numero = 6""");
+        assertThat(cambios).hasSize(1);
+        assertThat(cambios.get(0).get("estado")).isEqualTo("EnBolsinEnviado");
+        assertThat(cambios.get(0).get("responsable")).isEqualTo("Jeronimo Abdala");
+        assertThat(cambios.get(0).get("fin")).isNull();
+
+        // Paso 6: el Iterator recorre tambien el remito nuevo.
+        mvc.perform(get(BASE + "/bolsines/1002"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.informacionRemito", is(
+                        "Remito #502\n"
+                                + "  Asunto: Turno-derivación | Tipo: EXPEDIENTE\n"
+                                + "Remito #503\n"
+                                + "  Asunto: Informe-de-alta | Tipo: INFORME\n")));
+    }
+
+    @Test
+    @Order(11)
+    void agregarRemito_datosInvalidosResponde400YNoCreaNada() throws Exception {
+        mvc.perform(post("/api/bolsines/1002/remitos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"asunto\": \"   \", \"tipoDocumento\": \"INFORME\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje", is("El campo 'asunto' es obligatorio.")));
+        mvc.perform(post("/api/bolsines/1002/remitos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"asunto\": \"X\", \"tipoDocumento\": \"FOTO\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje", containsString("Tipo de documento invalido")));
+
+        // Siguen los mismos 2 remitos del 1002 y las mismas 6 documentaciones.
+        assertThat(jdbc.queryForObject(
+                "select count(*) from remito where bolsin_numero = 1002", Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select count(*) from documentacion", Integer.class)).isEqualTo(6);
     }
 
     private static org.springframework.test.web.servlet.RequestBuilder recibir(int numero, String cuerpo) {

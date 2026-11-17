@@ -54,8 +54,22 @@ public class DetalleRemito implements Serializable {
         return areaCMDestino;
     }
 
-    public Documentacion getDocumentacion() {
+    /**
+     * Devuelve el objeto Documentacion (lo usa RemitoDto para el JSON). No es el getDocumentacion()
+     * del diagrama: ese devuelve un String con los datos de la documentacion (paso 6).
+     */
+    public Documentacion getObjetoDocumentacion() {
         return documentacion;
+    }
+
+    /**
+     * Paso 6 del CU 28 (getDocumentacion(): String del diagrama): le pide a su Documentacion
+     * getAsunto() y mostrarTipoDocumentacion() (que le pide getNombre() a su TipoDocumento)
+     * y devuelve esos datos. Asi el Remito nunca le habla a la Documentacion.
+     */
+    public String getDocumentacion() {
+        return "Asunto: " + documentacion.getAsunto()
+                + " | Tipo: " + documentacion.mostrarTipoDocumentacion();
     }
 
     /** Paso 11 del CU 28: delega en la Documentacion su transicion a RecibidaYAceptada. */

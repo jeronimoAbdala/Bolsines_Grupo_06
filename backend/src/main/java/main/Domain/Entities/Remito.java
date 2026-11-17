@@ -9,6 +9,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import main.Domain.Iterator.IAgregado;
+import main.Domain.Iterator.IIterador;
+import main.Domain.Iterator.IteradorDetalle;
 
 import java.io.Serializable;
 import java.time.LocalDate;
@@ -18,10 +21,11 @@ import java.util.List;
 
 /**
  * Remito: solo tiene atributo estado, sin historial (no existe CambioEstadoRemito en el diagrama).
+ * Patron Iterator - rol ConcreteAggregate: crea un IteradorDetalle y con el recorre sus detalles (paso 6).
  */
 @Entity
 @Table(name = "remito")
-public class Remito implements Serializable {
+public class Remito implements Serializable, IAgregado {
 
     private static final long serialVersionUID = 1L;
 
@@ -48,11 +52,13 @@ public class Remito implements Serializable {
     /**
      * Composicion Remito -> DetalleRemito (unidireccional). ALL: los detalles viven y mueren con el remito.
      * La FK remito_numero queda en la tabla detalle_remito. LAZY (default de @OneToMany).
+     * El atributo se llama como en el diagrama de clases (detalleRemito); la columna no depende
+     * de ese nombre: la fija @JoinColumn.
      */
     @OneToMany(cascade = CascadeType.ALL)
     @JoinColumn(name = "remito_numero", nullable = false)
     @OrderBy("id")
-    private List<DetalleRemito> detalles = new ArrayList<>();
+    private List<DetalleRemito> detalleRemito = new ArrayList<>();
 
     /** Requerido por JPA. */
     protected Remito() {
@@ -68,15 +74,30 @@ public class Remito implements Serializable {
     }
 
     public void agregarDetalle(DetalleRemito detalle) {
-        detalles.add(detalle);
+        detalleRemito.add(detalle);
     }
 
-    public List<Documentacion> buscarDocumentacion() {
-        List<Documentacion> docs = new ArrayList<>();
-        for (DetalleRemito detalle : detalles) {
-            docs.add(detalle.getDocumentacion());
+    /** crearIterador(elementos: Object[]): IIterador del diagrama: el Remito crea su iterador concreto. */
+    @Override
+    public IIterador crearIterador(Object[] elementos) {
+        return new IteradorDetalle(elementos);
+    }
+
+    /**
+     * Paso 6 del CU 28 (loop Detalles de la secuencia): recorre sus detalles con un IteradorDetalle
+     * y a cada uno le pide getDocumentacion(). Una linea por documentacion, con sangria de 2 espacios.
+     * Sin detalles devuelve "".
+     */
+    public String buscarDocumentacion() {
+        StringBuilder documentacion = new StringBuilder();
+        IIterador iterador = crearIterador(detalleRemito.toArray());
+        iterador.primero();
+        while (!iterador.haFinalizado()) {
+            DetalleRemito detalle = (DetalleRemito) iterador.elementoActual();
+            documentacion.append("  ").append(detalle.getDocumentacion()).append("\n");
+            iterador.siguiente();
         }
-        return docs;
+        return documentacion.toString();
     }
 
     /**
@@ -86,7 +107,7 @@ public class Remito implements Serializable {
     public void aceptar(Estado estadoRecibidoYAceptado, Estado estadoRecibidaYAceptada,
                         Empleado empleado, LocalDateTime fechaHora) {
         setEstado(estadoRecibidoYAceptado);
-        for (DetalleRemito detalle : detalles) {
+        for (DetalleRemito detalle : detalleRemito) {
             detalle.aceptarDocumentacion(estadoRecibidaYAceptada, empleado, fechaHora);
         }
     }
@@ -107,8 +128,8 @@ public class Remito implements Serializable {
         return cmDestino;
     }
 
-    public List<DetalleRemito> getDetalles() {
-        return detalles;
+    public List<DetalleRemito> getDetalleRemito() {
+        return detalleRemito;
     }
 
     public Estado getEstado() {

@@ -4,7 +4,7 @@ import { errorMessage } from '@/shared/utils/errorMessage';
 import { formatPeso } from '@/shared/utils/format';
 import { useDetalleRecepcion } from '../hooks/useRecepcion';
 import { OPCIONES_RECEPCION, type OpcionRecepcion } from '../types/recepcion.types';
-import { RemitosList } from './RemitosList';
+import { DatosRemito } from './DatosRemito';
 
 interface DetalleRemitoPanelProps {
   numero: number | null;
@@ -39,7 +39,9 @@ export const DetalleRemitoPanel = ({ numero, onContinuar }: DetalleRemitoPanelPr
             <div><dt>Precinto</dt><dd>{data.bolsin.nroPrecinto ?? 'N/A'}</dd></div>
             <div><dt>Peso</dt><dd>{formatPeso(data.bolsin.peso)}</dd></div>
           </dl>
-          <RemitosList remitos={data.bolsin.remitos} />
+          {/* Paso 6 (mostrarDatosRemito): remitos y documentaciones armados por el Iterator en el backend. */}
+          <DatosRemito informacionRemito={data.informacionRemito} />
+          {/* Paso 7 (mostrarOpcionesRecepcion): las 4 opciones de recepcion, despues de los datos. */}
           <fieldset className="opciones-recepcion">
             <legend>Opcion de recepcion</legend>
             {OPCIONES_RECEPCION.map((o) => (

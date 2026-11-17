@@ -27,12 +27,14 @@ public class RecepcionBolsinController {
         return gestor.buscarBolsinPorNumero(numero);
     }
 
-    public String obtenerInformacionRemito() {
-        return gestor.obtenerInformacionRemito();
-    }
-
+    /** Pasos 5 y 6: el Gestor busca el bolsin y arma informacionRemito (con el Iterator, en el Bolsin). */
     public void tomarSeleccionBolsin(int numero) {
         gestor.tomarSeleccionBolsin(numero);
+    }
+
+    /** Lo que armo el Iterator en el paso 6 (atributo informacionRemito del Gestor). */
+    public String getInformacionRemito() {
+        return gestor.getInformacionRemito();
     }
 
     /**

@@ -9,6 +9,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import main.Domain.Iterator.IAgregado;
+import main.Domain.Iterator.IIterador;
+import main.Domain.Iterator.IteradorRemito;
 
 import java.io.Serializable;
 import java.time.LocalDate;
@@ -16,9 +19,12 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Patron Iterator - rol ConcreteAggregate: crea un IteradorRemito y con el recorre sus remitos (paso 6).
+ */
 @Entity
 @Table(name = "bolsin")
-public class Bolsin implements Serializable {
+public class Bolsin implements Serializable, IAgregado {
 
     private static final long serialVersionUID = 1L;
 
@@ -147,12 +153,28 @@ public class Bolsin implements Serializable {
         crearNuevoCE(estadoRecibidoEnCMDestino, fechaHora, empleado);
     }
 
+    /** crearIterador(elementos: Object[]): IIterador del diagrama: el Bolsin crea su iterador concreto. */
+    @Override
+    public IIterador crearIterador(Object[] elementos) {
+        return new IteradorRemito(elementos);
+    }
+
+    /**
+     * Paso 6 del CU 28 (loop Remitos de la secuencia): recorre sus remitos con un IteradorRemito;
+     * de cada uno pone el numero (getNumero) y debajo su documentacion (buscarDocumentacion, que
+     * recorre los detalles con su propio iterador). Sin remitos devuelve "".
+     */
     public String obtenerInformacionRemito() {
-        StringBuilder info = new StringBuilder();
-        for (Remito remito : remitos) {
-            info.append("Remito #").append(remito.getNumero()).append("\n");
+        StringBuilder informacion = new StringBuilder();
+        IIterador iterador = crearIterador(remitos.toArray());
+        iterador.primero();
+        while (!iterador.haFinalizado()) {
+            Remito remito = (Remito) iterador.elementoActual();
+            informacion.append("Remito #").append(remito.getNumero()).append("\n");
+            informacion.append(remito.buscarDocumentacion());
+            iterador.siguiente();
         }
-        return info.toString();
+        return informacion.toString();
     }
 
     public CambioEstadoBolsin crearNuevoCE(Estado estado, LocalDateTime fechaHora, Empleado empleado) {

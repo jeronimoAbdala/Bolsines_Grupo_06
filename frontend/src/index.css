@@ -85,6 +85,16 @@ a { color: var(--primario-claro); }
 
 .table-wrap { overflow-x: auto; }
 
+/* Filtro de bolsines pendientes (paso 4 del CU 28) */
+.filtro-bolsines { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.filtro-bolsines label { font-size: 13px; font-weight: 600; }
+.filtro-bolsines select, .filtro-bolsines input { font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--borde); border-radius: 8px; background: #fff; color: var(--texto); }
+.filtro-bolsines input { flex: 1; min-width: 140px; }
+.filtro-bolsines select:focus, .filtro-bolsines input:focus { outline: 2px solid var(--primario-claro); outline-offset: -1px; border-color: transparent; }
+.filtro-resumen { margin: 0; }
+.filtro-sin-resultados { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 24px 12px; border: 1px dashed var(--borde); border-radius: 8px; }
+.filtro-sin-resultados p { margin: 0; font-size: 14px; color: var(--texto); }
+
 /* Badge */
 .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .03em; white-space: nowrap; }
 .badge-success { background: var(--exito-suave); color: var(--exito); }

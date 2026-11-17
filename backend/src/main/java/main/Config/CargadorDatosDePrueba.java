@@ -77,8 +77,8 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
 
         // 2. Tipos de documento: los mismos que valida la API y ofrece el frontend.
         TipoDocumento expediente = tipo("EXPEDIENTE", "Expediente médico");
-        tipo("INFORME", "Informe");
-        tipo("CERTIFICADO", "Certificado");
+        TipoDocumento informe = tipo("INFORME", "Informe");
+        TipoDocumento certificado = tipo("CERTIFICADO", "Certificado");
         tipo("OTRO", "Otro");
 
         // 3. Comisiones medicas: se usa la instancia que devuelve save() (merge, clave asignada).
@@ -100,19 +100,32 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         //    el mismo dia del envio (iguales o anteriores al cambio de estado inicial).
         LocalDateTime envio = LocalDateTime.now().minusDays(2);
 
+        //    Un DetalleRemito por cada documentacion (Remito 1..* DetalleRemito, DetalleRemito 1 Documentacion).
+        //    El remito 500 tiene 3 documentaciones de tipos distintos: en el paso 6 el loop Detalles del Iterator da 3 vueltas.
         Bolsin b1001 = bolsin(1001, "PREC-001", 2.5, buenosAires, cordoba, bolEnviado, envio, maria);
-        b1001.agregarRemito(remito(500, 1, "Expediente-cardiológico", "Historia clínica del paciente X",
-                buenosAires, cordoba, remEnviado, docEnBolsinEnviado, expediente, envio, maria));
-        b1001.agregarRemito(remito(501, 2, "Estudios-complementarios", "Radiografías y análisis",
-                buenosAires, cordoba, remEnviado, docEnBolsinEnviado, expediente, envio, maria));
+        Remito r500 = remito(500, buenosAires, cordoba, remEnviado, envio);
+        r500.agregarDetalle(new DetalleRemito(documentacion(1, "Expediente-cardiológico",
+                "Historia clínica del paciente X", expediente, docEnBolsinEnviado, envio, maria)));
+        r500.agregarDetalle(new DetalleRemito(documentacion(2, "Informe-electrocardiograma",
+                "Electrocardiograma y ecocardiograma", informe, docEnBolsinEnviado, envio, maria)));
+        r500.agregarDetalle(new DetalleRemito(documentacion(3, "Certificado-de-aptitud",
+                "Certificado de aptitud laboral", certificado, docEnBolsinEnviado, envio, maria)));
+        b1001.agregarRemito(r500);
+        Remito r501 = remito(501, buenosAires, cordoba, remEnviado, envio);
+        r501.agregarDetalle(new DetalleRemito(documentacion(4, "Estudios-complementarios",
+                "Radiografías y análisis", expediente, docEnBolsinEnviado, envio, maria)));
+        b1001.agregarRemito(r501);
         bolsinRepository.guardar(b1001);
 
         Bolsin b1002 = bolsin(1002, "PREC-002", 1.2, buenosAires, cordoba, bolEnviado, envio, maria);
-        b1002.agregarRemito(remito(502, 3, "Turno-derivación", "Documentación para derivación",
-                buenosAires, cordoba, remEnviado, docEnBolsinEnviado, expediente, envio, maria));
+        Remito r502 = remito(502, buenosAires, cordoba, remEnviado, envio);
+        r502.agregarDetalle(new DetalleRemito(documentacion(5, "Turno-derivación",
+                "Documentación para derivación", expediente, docEnBolsinEnviado, envio, maria)));
+        b1002.agregarRemito(r502);
         bolsinRepository.guardar(b1002);
 
-        log.info("Datos de prueba cargados: 13 estados, 4 tipos, 2 CM, 2 empleados, bolsines 1001 y 1002.");
+        log.info("Datos de prueba cargados: 13 estados, 4 tipos, 2 CM, 2 empleados, "
+                + "bolsines 1001 y 1002 (3 remitos, 5 documentaciones).");
     }
 
     /** save() con id null hace persist: la misma instancia queda con su id y se puede referenciar. */
@@ -137,15 +150,18 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         return bolsin;
     }
 
-    private Remito remito(int numero, int numeroDoc, String asunto, String descripcion,
-                          ComisionMedica origen, ComisionMedica destino, Estado remEnviado,
-                          Estado docEnBolsinEnviado, TipoDocumento tipo,
-                          LocalDateTime fechaHora, Empleado responsable) {
+    /** Remito sin documentacion: cada documentacion se agrega despues con su propio DetalleRemito. */
+    private Remito remito(int numero, ComisionMedica origen, ComisionMedica destino,
+                          Estado remEnviado, LocalDateTime fechaHora) {
+        return new Remito(numero, fechaHora.toLocalDate(), remEnviado, origen, destino);
+    }
+
+    /** Documentacion con fecha de pase el dia del envio y su cambio de estado inicial (EnBolsinEnviado). */
+    private Documentacion documentacion(int numero, String asunto, String descripcion, TipoDocumento tipo,
+                                        Estado docEnBolsinEnviado, LocalDateTime fechaHora, Empleado responsable) {
         LocalDate fecha = fechaHora.toLocalDate();
-        Remito remito = new Remito(numero, fecha, remEnviado, origen, destino);
-        Documentacion doc = new Documentacion(numeroDoc, asunto, descripcion, docEnBolsinEnviado, tipo, fecha);
+        Documentacion doc = new Documentacion(numero, asunto, descripcion, docEnBolsinEnviado, tipo, fecha);
         doc.crearNuevoCE(docEnBolsinEnviado, fechaHora, responsable);
-        remito.agregarDetalle(new DetalleRemito(doc));
-        return remito;
+        return doc;
     }
 }

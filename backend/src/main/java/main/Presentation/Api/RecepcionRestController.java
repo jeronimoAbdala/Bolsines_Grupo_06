@@ -42,13 +42,16 @@ public class RecepcionRestController {
         return controller.buscarBolsinesEnviados().stream().map(BolsinDto::de).toList();
     }
 
-    /** Seleccion de un bolsin y datos de sus remitos (tomarSeleccionBolsin + obtenerInformacionRemito). */
+    /**
+     * Pasos 5 y 6: seleccion de un bolsin (tomarSeleccionBolsin) y la informacion de sus remitos que
+     * arma el Iterator (informacionRemito). El encabezado (origen, destino, precinto, peso) va en el DTO.
+     */
     @GetMapping("/bolsines/{numero}")
     public DetalleRecepcionDto seleccionarBolsin(@PathVariable int numero) {
         synchronized (controller) {
             Bolsin bolsin = buscarPendiente(numero);
             controller.tomarSeleccionBolsin(numero);
-            return new DetalleRecepcionDto(BolsinDto.de(bolsin), controller.obtenerInformacionRemito());
+            return new DetalleRecepcionDto(BolsinDto.de(bolsin), controller.getInformacionRemito());
         }
     }
 
