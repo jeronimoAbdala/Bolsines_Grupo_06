@@ -1,5 +1,5 @@
 import { Badge, Button, Modal } from '@/shared/components';
-import type { Bolsin } from '@/features/bolsines';
+import type { Bolsin } from '../types/recepcion.types';
 import { RemitosList } from './RemitosList';
 
 interface RecepcionExitosaModalProps {

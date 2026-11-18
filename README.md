@@ -1,6 +1,6 @@
 # Sistema Bolsines — PPAI Grupo 6
 
-CU 28 **Registrar recepción de bolsín**, separado en dos proyectos:
+CU 28 **Registrar recepción de bolsín**, separado en dos proyectos. Como el ejemplo de la cátedra, el proyecto tiene **solo este caso de uso**: una Pantalla y un Gestor. Los datos de prueba se cargan solos al arrancar (no hay pantallas para crear bolsines, comisiones ni usuarios).
 
 | Carpeta | Qué es | Tecnología |
 |---|---|---|
@@ -63,6 +63,8 @@ Entrá al menú **Registrar recepcion**. Arriba se ve el usuario logueado (Jeron
 4. Aparece "Recepcion registrada": el bolsín queda **RecibidoEnCMDestino** (verde), sus remitos **RecibidoYAceptado** y su documentación **RecibidaYAceptada**. Tocá **Listo**.
 5. En la tabla queda solo el **1002**: el 1001 ya no está pendiente de recepción.
 
+Para volver a tener los dos bolsines pendientes: borrá `backend/db/` y reiniciá el backend (ver [Cómo reiniciar los datos de prueba](#cómo-reiniciar-los-datos-de-prueba)).
+
 **Filtro del paso 4 y flujos alternativos A1 y A2**
 
 Arriba de la tabla está **Filtrar por**: se elige el dato (Número de precinto o CM origen), se escribe el valor y se toca **Filtrar** (o Enter). Se filtra por un dato a la vez, sin distinguir mayúsculas ni tildes.
@@ -100,7 +102,7 @@ cd backend
 mvn test
 ```
 
-Corre `RecepcionBolsinFlujoTest`, que recorre el CU 28 completo por los endpoints de la Pantalla (iniciar, selección con el texto del Iterator, opción —las no implementadas responden 501— y confirmación con la opción 1), el historial de estados y la pantalla auxiliar "Agregar remito". Usa una base H2 **en memoria**, así que no toca los datos de `backend/db/`.
+Corre `RecepcionBolsinFlujoTest`, que recorre el CU 28 completo por los endpoints de la Pantalla (iniciar, selección con el texto del Iterator, opción —las no implementadas responden 501— y confirmación con la opción 1) y el historial de estados. Usa una base H2 **en memoria**, así que no toca los datos de `backend/db/`.
 
 También corre los tests unitarios del patrón Iterator del paso 6, sin base ni Spring: `IteradorRemitoTest` e `IteradorDetalleTest` (orden, fin del recorrido, `primero()` reinicia, colección vacía) y `RecorridoIteratorTest` (recorrido anidado Bolsín → Remito → Detalle y el texto que arma).
 
@@ -112,12 +114,8 @@ También corre los tests unitarios del patrón Iterator del paso 6, sin base ni 
 | POST | `/api/recepcion/seleccion/{numero}` | Pasos 5 a 7 (`tomarSeleccionBolsin()`): selección del bolsín, información de remitos (Iterator) y las 4 opciones de recepción |
 | POST | `/api/recepcion/opcion` | Paso 8 (`tomarOpcionDeRecepcion()`). Cuerpo: `{ "opcion": 1 }`. Responde el número del bolsín a confirmar |
 | POST | `/api/recepcion/confirmacion` | Pasos 10 a 12 (`tomarConfirmacion()`): registra la recepción y devuelve el bolsín recibido |
-| GET / POST | `/api/bolsines` | Listar / crear bolsín |
-| POST | `/api/bolsines/{numero}/remitos` | Agregar remito con documentación |
-| GET / POST | `/api/comisiones` | Listar / crear comisión médica |
-| GET / POST | `/api/usuarios` | Listar / crear usuario |
 
-Los errores vuelven como `{ "mensaje": "..." }` con 400 (datos inválidos), 404 (no existe), 409 (el bolsín no está pendiente o no hay un bolsín seleccionado) o 501 (opción de recepción 2, 3 o 4: "Opción no implementada").
+Los errores vuelven como `{ "mensaje": "..." }` con 400 (opción fuera de 1 a 4 o cuerpo inválido), 404 (no hay usuario logueado), 409 (el bolsín no está pendiente o no hay un bolsín seleccionado) o 501 (opción de recepción 2, 3 o 4: "Opción no implementada").
 
 Los endpoints de `/api/recepcion` son los mensajes del actor de la Pantalla del diagrama de secuencia (`PantallaRegistrarRecepcionBolsin`, un `@RestController`). El Gestor guarda el estado del CU entre un pedido y el siguiente, por eso van en orden: iniciar → selección → opción → confirmación.
 

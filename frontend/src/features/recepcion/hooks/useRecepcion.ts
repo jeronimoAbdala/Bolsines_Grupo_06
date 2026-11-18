@@ -1,33 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { bolsinKeys } from '@/features/bolsines';
 import { recepcionService } from '../services/recepcion.service';
 
-// Cuelgan de bolsinKeys.all: crear un bolsin o agregar un remito refresca la recepcion.
 export const recepcionKeys = {
-  all: [...bolsinKeys.all, 'recepcion'] as const,
+  all: ['recepcion'] as const,
   ventana: () => [...recepcionKeys.all, 'ventana'] as const,
 };
 
-// useVentanaRecepcion, useSesion y useBolsinesEnviados comparten la misma consulta (un solo POST /iniciar).
+// useVentanaRecepcion y useSesion comparten la misma consulta (un solo POST /iniciar, opcRegistrarRecepcionBolsin).
+// staleTime 0: cada vez que se entra a la pantalla se vuelve a iniciar el CU (paso 1).
 export const useVentanaRecepcion = () =>
   useQuery({
     queryKey: recepcionKeys.ventana(),
     queryFn: recepcionService.iniciar,
+    staleTime: 0,
   });
 
-// Cada uno toma su parte de la ventana.
+// SesionCard toma solo el usuario logueado.
 export const useSesion = () =>
   useQuery({
     queryKey: recepcionKeys.ventana(),
     queryFn: recepcionService.iniciar,
+    staleTime: 0,
     select: (ventana) => ventana.usuario,
-  });
-
-export const useBolsinesEnviados = () =>
-  useQuery({
-    queryKey: recepcionKeys.ventana(),
-    queryFn: recepcionService.iniciar,
-    select: (ventana) => ventana.bolsines,
   });
 
 // Mutaciones: cada accion del usuario cambia el estado del CU en el Gestor.
@@ -42,9 +36,6 @@ export const useConfirmarRecepcion = () => {
   return useMutation({
     mutationFn: () => recepcionService.confirmar(),
     // Se vuelve a pedir la ventana: el bolsin recibido ya no esta pendiente.
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: recepcionKeys.ventana() });
-      queryClient.invalidateQueries({ queryKey: bolsinKeys.lists() });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: recepcionKeys.ventana() }),
   });
 };

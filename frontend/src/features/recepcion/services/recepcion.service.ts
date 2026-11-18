@@ -1,6 +1,5 @@
 import { api } from '@/shared/lib/axios';
-import type { Bolsin } from '@/features/bolsines';
-import type { DetalleRecepcion, VentanaRecepcion } from '../types/recepcion.types';
+import type { Bolsin, DetalleRecepcion, VentanaRecepcion } from '../types/recepcion.types';
 
 /** Un metodo por cada endpoint de PantallaRegistrarRecepcionBolsin (backend). */
 export const recepcionService = {

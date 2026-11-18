@@ -1,6 +1,6 @@
 import { Badge } from '@/shared/components';
 import { formatFecha } from '@/shared/utils/format';
-import type { Remito } from '@/features/bolsines';
+import type { Remito } from '../types/recepcion.types';
 
 interface RemitosListProps {
   remitos: Remito[];

@@ -75,7 +75,7 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         estado("DOC", "RecibidaYAceptada", "Documentación recibida y aceptada");
         estado("DOC", "Eliminado", "Documentación eliminada");
 
-        // 2. Tipos de documento: los mismos que valida la API y ofrece el frontend.
+        // 2. Tipos de documento del catalogo (los muestra el paso 6 por cada documentacion).
         TipoDocumento expediente = tipo("EXPEDIENTE", "Expediente médico");
         TipoDocumento informe = tipo("INFORME", "Informe");
         TipoDocumento certificado = tipo("CERTIFICADO", "Certificado");

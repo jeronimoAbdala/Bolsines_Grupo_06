@@ -28,7 +28,7 @@ public class Bolsin implements Serializable, IAgregado {
 
     private static final long serialVersionUID = 1L;
 
-    /** Clave natural asignada: la asigna el sistema (obtenerSiguienteNumeroBolsin). */
+    /** Clave natural asignada (no autogenerada): la ponen los datos de prueba (CargadorDatosDePrueba). */
     @Id
     @Column(name = "numero")
     private int numero;

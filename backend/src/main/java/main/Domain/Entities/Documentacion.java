@@ -22,7 +22,7 @@ public class Documentacion implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** Clave natural asignada: la asigna el sistema (obtenerSiguienteNumeroDocumentacion). */
+    /** Clave natural asignada (no autogenerada): la ponen los datos de prueba (CargadorDatosDePrueba). */
     @Id
     @Column(name = "numero")
     private int numero;

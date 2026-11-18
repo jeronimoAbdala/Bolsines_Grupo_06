@@ -6,13 +6,10 @@ import main.Dto.BolsinEnviadoDto;
 import main.Dto.ComisionMedicaDto;
 import main.Dto.UsuarioDto;
 import main.Repositories.BolsinRepository;
-import main.Repositories.ComisionMedicaRepository;
 import main.Repositories.EmpleadoRepository;
 import main.Repositories.EstadoRepository;
-import main.Repositories.TipoDocumentoRepository;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,10 +19,8 @@ import java.util.List;
 public class GestorRecepcionBolsin {
 
     private final BolsinRepository bolsinRepository;
-    private final ComisionMedicaRepository comisionMedicaRepository;
     private final EmpleadoRepository empleadoRepository;
     private final EstadoRepository estadoRepository;
-    private final TipoDocumentoRepository tipoDocumentoRepository;
 
     private Sesion sesionActual;
     private Empleado empleadoLogueado;
@@ -44,15 +39,11 @@ public class GestorRecepcionBolsin {
     private Estado estadoRecibidaYAceptada;
 
     public GestorRecepcionBolsin(BolsinRepository bolsinRepository,
-                                 ComisionMedicaRepository comisionMedicaRepository,
                                  EmpleadoRepository empleadoRepository,
-                                 EstadoRepository estadoRepository,
-                                 TipoDocumentoRepository tipoDocumentoRepository) {
+                                 EstadoRepository estadoRepository) {
         this.bolsinRepository = bolsinRepository;
-        this.comisionMedicaRepository = comisionMedicaRepository;
         this.empleadoRepository = empleadoRepository;
         this.estadoRepository = estadoRepository;
-        this.tipoDocumentoRepository = tipoDocumentoRepository;
     }
 
     /** No hay login: la Sesion actual se crea al iniciar la aplicacion y se registra aca. */
@@ -71,9 +62,9 @@ public class GestorRecepcionBolsin {
      * Paso 2 del CU 28: le pide getUsuario() a la Sesion actual y recorre los empleados
      * preguntando *esTuUsuario(usuario). El encontrado es el empleado logueado.
      */
-    public Empleado buscarUsuarioLogueado() {
+    public void buscarUsuarioLogueado() {
         this.empleadoLogueado = null;
-        if (sesionActual == null) return null;
+        if (sesionActual == null) return;
         Usuario usuario = sesionActual.getUsuario();
         for (Empleado empleado : empleadoRepository.findAll()) {
             if (empleado.esTuUsuario(usuario)) {
@@ -81,7 +72,6 @@ public class GestorRecepcionBolsin {
                 break;
             }
         }
-        return empleadoLogueado;
     }
 
     // buscarBolsinesEnviados() — paso 3: *sosEnviado(), *esTuCM(); getCMOrigen() y getNroPrecinto() — paso 4
@@ -219,125 +209,7 @@ public class GestorRecepcionBolsin {
         return bolsinSeleccionado == null ? null : BolsinDto.de(bolsinSeleccionado);
     }
 
-    public Bolsin buscarBolsinPorNumero(int numero) {
-        return bolsinRepository.findById(numero).orElse(null);
-    }
-
     public String getInformacionRemito() {
         return informacionRemito;
-    }
-
-    public List<ComisionMedica> obtenerComisionesMedicas() {
-        return comisionMedicaRepository.findAll();
-    }
-
-    /**
-     * Pantalla auxiliar: el bolsin nace en Bolsin/Enviado con su cambio de estado inicial,
-     * a cargo del empleado logueado.
-     */
-    public void crearBolsin(int numero, String precinto, double peso, ComisionMedica cmOrigen, ComisionMedica cmDestino) {
-        Estado estadoEnviado = obtenerEstadoBolsinEnviado();
-        LocalDateTime fechaHora = getFechaYHoraActual();
-        Bolsin bolsin = new Bolsin(numero, cmOrigen, cmDestino, estadoEnviado);
-        bolsin.setNroPrecinto(precinto);
-        bolsin.setPeso(peso);
-        bolsin.crearNuevoCE(estadoEnviado, fechaHora, buscarUsuarioLogueado());
-        bolsinRepository.save(bolsin);
-    }
-
-    public int obtenerSiguienteNumeroBolsin() {
-        return bolsinRepository.obtenerSiguienteNumeroBolsin();
-    }
-
-    public int obtenerSiguienteNumeroRemito() {
-        return bolsinRepository.obtenerSiguienteNumeroRemito();
-    }
-
-    public int obtenerSiguienteNumeroDocumentacion() {
-        return bolsinRepository.obtenerSiguienteNumeroDocumentacion();
-    }
-
-    public void crearRemitoConDocumentacion(int bolsinNumero, int remitoNumero,
-                                            ComisionMedica cmOrigen, ComisionMedica cmDestino,
-                                            String asunto, String descripcion, String tipoDoc) {
-        // Pantalla auxiliar: Remito/Enviado (sin historial) y Documentacion/EnBolsinEnviado
-        // con su cambio de estado inicial a cargo del empleado logueado; tipo desde el catalogo.
-        Estado estadoRem = obtenerEstadoRemitoEnviado();
-        Estado estadoDoc = obtenerEstadoDocumentacionEnBolsinEnviado();
-        LocalDateTime fechaHora = getFechaYHoraActual();
-
-        Remito remito = new Remito(remitoNumero, LocalDate.now(), estadoRem, cmOrigen, cmDestino);
-
-        int docNumero = obtenerSiguienteNumeroDocumentacion();
-        Documentacion doc = new Documentacion(docNumero, asunto, descripcion, estadoDoc,
-                buscarTipoDocumento(tipoDoc));
-        doc.crearNuevoCE(estadoDoc, fechaHora, buscarUsuarioLogueado());
-
-        remito.agregarDetalle(new DetalleRemito(doc));
-        // El remito nuevo se inserta por la cascada ALL de Bolsin.remitos (y sus detalles y documentacion).
-        Bolsin bolsin = bolsinRepository.findById(bolsinNumero).orElse(null);
-        if (bolsin != null) {
-            bolsin.agregarRemito(remito);
-            bolsinRepository.save(bolsin);
-        }
-    }
-
-    // --- Pantallas auxiliares: estados y tipo persistidos (mismo estilo de recorrido que el paso 11).
-
-    private Estado obtenerEstadoBolsinEnviado() {
-        for (Estado estado : estadoRepository.findAll()) {
-            if (estado.esAmbitoBolsin() && estado.esEnviado()) {
-                return estado;
-            }
-        }
-        return null;
-    }
-
-    private Estado obtenerEstadoRemitoEnviado() {
-        for (Estado estado : estadoRepository.findAll()) {
-            if (estado.esAmbitoRemito() && estado.esEnviado()) {
-                return estado;
-            }
-        }
-        return null;
-    }
-
-    /** esEnviado() en el ambito DOC es EnBolsinEnviado (DME). */
-    private Estado obtenerEstadoDocumentacionEnBolsinEnviado() {
-        for (Estado estado : estadoRepository.findAll()) {
-            if (estado.esAmbitoDocumentacion() && estado.esEnviado()) {
-                return estado;
-            }
-        }
-        return null;
-    }
-
-    private TipoDocumento buscarTipoDocumento(String nombre) {
-        for (TipoDocumento tipo : tipoDocumentoRepository.findAll()) {
-            if (tipo.getNombre().equals(nombre)) {
-                return tipo;
-            }
-        }
-        return null;
-    }
-
-    public void crearUsuario(String nombreUsuario, String password,
-                             String nombreEmp, String apellidoEmp, String mailEmp, ComisionMedica cm) {
-        Usuario usuario = new Usuario(nombreUsuario, password);
-        Empleado emp = new Empleado(nombreEmp, apellidoEmp, mailEmp, cm, usuario);
-        empleadoRepository.save(emp);
-    }
-
-    public ComisionMedica crearComisionMedica(int codigo, String nombre, String direccion, String email, String telefono) {
-        return comisionMedicaRepository.save(new ComisionMedica(codigo, nombre, direccion, email, telefono));
-    }
-
-    public List<Bolsin> obtenerTodosBolsines() {
-        return bolsinRepository.findAll();
-    }
-
-    /** Cada Empleado conoce a su Usuario; la pantalla de usuarios lista empleados con su usuario. */
-    public List<Empleado> obtenerTodosEmpleados() {
-        return empleadoRepository.findAll();
     }
 }

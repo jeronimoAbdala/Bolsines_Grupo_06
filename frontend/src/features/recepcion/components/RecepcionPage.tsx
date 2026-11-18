@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, PageHeader } from '@/shared/components';
 import { errorMessage } from '@/shared/utils/errorMessage';
-import type { Bolsin } from '@/features/bolsines';
+import type { Bolsin } from '../types/recepcion.types';
 import { useConfirmarRecepcion, useElegirOpcion, useSeleccionarBolsin } from '../hooks/useRecepcion';
 import { BolsinesPendientesTable } from './BolsinesPendientesTable';
 import { ConfirmarRecepcionModal } from './ConfirmarRecepcionModal';

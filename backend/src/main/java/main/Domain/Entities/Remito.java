@@ -29,7 +29,7 @@ public class Remito implements Serializable, IAgregado {
 
     private static final long serialVersionUID = 1L;
 
-    /** Clave natural asignada: la asigna el sistema (obtenerSiguienteNumeroRemito). */
+    /** Clave natural asignada (no autogenerada): la ponen los datos de prueba (CargadorDatosDePrueba). */
     @Id
     @Column(name = "numero")
     private int numero;
