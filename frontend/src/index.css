@@ -72,7 +72,6 @@ a { color: var(--primario-claro); }
 .btn-danger { background: var(--superficie); color: var(--peligro); border-color: var(--peligro); }
 .btn-ghost { background: var(--superficie); color: var(--texto); border-color: var(--borde); }
 .acciones { display: flex; justify-content: flex-end; gap: 10px; }
-.acciones-inline { display: flex; gap: 8px; }
 
 /* Tabla */
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -123,7 +122,7 @@ a { color: var(--primario-claro); }
 .opciones-recepcion { border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; margin: 0; display: flex; flex-direction: column; gap: 8px; }
 .opciones-recepcion legend { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--texto-suave); padding: 0 4px; }
 .opciones-recepcion label { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; }
-.remitos, .documentos, .bolsines, .accesos { list-style: none; margin: 0; padding: 0; }
+.remitos, .documentos { list-style: none; margin: 0; padding: 0; }
 .remitos { display: flex; flex-direction: column; gap: 10px; }
 .remito { border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; }
 .remito-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -133,30 +132,8 @@ a { color: var(--primario-claro); }
 .documentos li .badge { margin-left: auto; }
 .exito { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; color: var(--exito); margin-top: 0; }
 
-/* Bolsines */
-.bolsines { display: flex; flex-direction: column; gap: 8px; }
-.bolsin-item { border: 1px solid var(--borde); border-radius: 8px; }
-.bolsin-resumen { width: 100%; display: grid; grid-template-columns: 70px 1fr auto auto auto 16px; gap: 14px; align-items: center; background: none; border: none; padding: 12px 14px; font: inherit; font-size: 14px; text-align: left; cursor: pointer; color: inherit; }
-.bolsin-resumen:hover { background: var(--fondo); }
-.bolsin-detalle { padding: 0 14px 12px 98px; display: flex; flex-direction: column; gap: 6px; }
-.remito-mini { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px; }
-@media (max-width: 700px) {
-  .bolsin-resumen { grid-template-columns: 1fr auto; }
-  .bolsin-detalle { padding-left: 14px; }
-}
-
-/* Formularios */
-.form { display: flex; flex-direction: column; gap: 14px; max-width: 560px; }
-.field { display: flex; flex-direction: column; gap: 5px; }
-.field label { font-size: 13px; font-weight: 600; }
-.field small { font-size: 12px; color: var(--texto-suave); }
-.field input, .field select, .field textarea { font: inherit; font-size: 14px; padding: 9px 11px; border: 1px solid var(--borde); border-radius: 8px; background: #fff; color: var(--texto); }
-.field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--primario-claro); outline-offset: -1px; border-color: transparent; }
-
-/* KPI */
-.kpi { align-items: flex-start; }
-.kpi-valor { font-size: 44px; font-weight: 800; color: var(--primario-claro); line-height: 1; }
-.accesos { display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+/* Inicio */
+.inicio { align-items: flex-start; }
 
 /* Modal */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 30, 45, .45); display: grid; place-items: center; padding: 16px; z-index: 10; }

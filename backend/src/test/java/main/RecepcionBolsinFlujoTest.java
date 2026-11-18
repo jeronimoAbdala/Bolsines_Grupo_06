@@ -18,20 +18,21 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * CU 28 de punta a punta, sin tocar la base de archivo: API REST -> Controller -> Gestor -> repositorios -> Hibernate -> H2 en memoria.
- * Los metodos corren EN ORDEN y comparten la misma base: primero se verifica el estado inicial,
- * despues se recibe el 1001 y se verifica el historial; al final, la pantalla auxiliar "Agregar remito"
- * (sobre el 1002, despues de las verificaciones que lo miran).
+ * CU 28 de punta a punta, sin tocar la base de archivo: PantallaRegistrarRecepcionBolsin (REST) -> Gestor
+ * -> repositorios (JpaRepository) -> Hibernate -> H2 en memoria.
+ * Los metodos corren EN ORDEN y comparten la misma base y el mismo Gestor (guarda el estado del CU entre
+ * pedidos): primero se verifica el estado inicial, despues se recibe el 1001 y se verifica el historial;
+ * al final, que el 1001 ya no este pendiente, el Iterator del 1005 (4 documentaciones) y el historial del 1007,
+ * que los datos de prueba cargan ya recibido.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -65,19 +66,27 @@ class RecepcionBolsinFlujoTest {
     @Test
     @Order(2)
     void paso2_sesionDelEmpleadoLogueado() throws Exception {
-        mvc.perform(get(BASE + "/sesion"))
+        mvc.perform(post(BASE + "/iniciar"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nombreUsuario", is("jero")))
-                .andExpect(jsonPath("$.comisionMedica.nombre", is("Cordoba")));
+                .andExpect(jsonPath("$.usuario.nombreUsuario", is("jero")))
+                .andExpect(jsonPath("$.usuario.comisionMedica.nombre", is("Cordoba")));
     }
 
     @Test
     @Order(3)
     void paso3y4_bolsinesEnviadosALaCMDelEmpleado() throws Exception {
-        mvc.perform(get(BASE + "/bolsines"))
+        // El Gestor pide getCMOrigen() y getNroPrecinto() en el loop; la Pantalla arma cada fila
+        // con mostrarCMOrigen() y mostrarNroPrecinto(), y agrega el texto de solicitarSeleccionBolsin().
+        // No aparecen el 1006 (enviado a Buenos Aires: esTuCM() da falso) ni el 1007 (ya recibido: sosEnviado() da falso).
+        mvc.perform(post(BASE + "/iniciar"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].numero", containsInAnyOrder(1001, 1002)))
-                .andExpect(jsonPath("$[*].estado", everyItem(is("Enviado"))));
+                .andExpect(jsonPath("$.bolsines[*].numero", containsInAnyOrder(1001, 1002, 1003, 1004, 1005)))
+                .andExpect(jsonPath("$.bolsines[*].estado", everyItem(is("Enviado"))))
+                .andExpect(jsonPath("$.bolsines[*].cmOrigen",
+                        containsInAnyOrder("Buenos Aires", "Buenos Aires", "Rosario", "Mendoza", "Tucumán")))
+                .andExpect(jsonPath("$.bolsines[*].nroPrecinto",
+                        containsInAnyOrder("PREC-001", "PREC-002", "PREC-003", "PREC-004", "PREC-005")))
+                .andExpect(jsonPath("$.solicitudSeleccion", is("Seleccione un bolsín para registrar su recepción")));
     }
 
     @Test
@@ -85,9 +94,10 @@ class RecepcionBolsinFlujoTest {
     void paso5y6_remitosYDocumentacionDelBolsinSeleccionado() throws Exception {
         // informacionRemito es lo que armo el Iterator (Bolsin -> Remito -> DetalleRemito) con los datos de prueba.
         // El remito 500 tiene 3 documentaciones de tipos distintos: el loop Detalles da 3 vueltas en el 500 y 1 en el 501.
-        mvc.perform(get(BASE + "/bolsines/1001"))
+        mvc.perform(post(BASE + "/seleccion/1001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.bolsin.cantRemitos", is(2)))
+                .andExpect(jsonPath("$.opcionesRecepcion", hasSize(4)))
                 .andExpect(jsonPath("$.informacionRemito", is(
                         "Remito #500\n"
                                 + "  Asunto: Expediente-cardiológico | Tipo: EXPEDIENTE\n"
@@ -100,11 +110,15 @@ class RecepcionBolsinFlujoTest {
     @Test
     @Order(5)
     void opcionNoImplementada_responde501YNoCambiaNada() throws Exception {
-        mvc.perform(recibir(1001, "{\"opcion\":2}"))
+        // Sigue seleccionado el 1001 (paso 5 del test anterior).
+        mvc.perform(opcion("{\"opcion\":2}"))
                 .andExpect(status().isNotImplemented())
-                .andExpect(jsonPath("$.mensaje", containsString("no implementada")));
-        mvc.perform(recibir(1001, "{\"opcion\":9}"))
+                .andExpect(jsonPath("$.mensaje", is("Opción no implementada")));
+        mvc.perform(opcion("{\"opcion\":9}"))
                 .andExpect(status().isBadRequest());
+        // Con la opcion 2 guardada en el Gestor, confirmar no registra nada.
+        mvc.perform(post(BASE + "/confirmacion"))
+                .andExpect(status().isConflict());
 
         assertThat(estadoDelBolsin(1001)).isEqualTo("Enviado");
         assertThat(jdbc.queryForObject(
@@ -114,7 +128,13 @@ class RecepcionBolsinFlujoTest {
     @Test
     @Order(6)
     void paso11_recibirConOpcion1() throws Exception {
-        mvc.perform(recibir(1001, "{\"opcion\":1}"))
+        mvc.perform(post(BASE + "/iniciar")).andExpect(status().isOk());
+        mvc.perform(post(BASE + "/seleccion/1001")).andExpect(status().isOk());
+        // solicitarConfirmacion(): el numero del bolsin que se pide confirmar.
+        mvc.perform(opcion("{\"opcion\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("1001"));
+        mvc.perform(post(BASE + "/confirmacion"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado", is("RecibidoEnCMDestino")))
                 .andExpect(jsonPath("$.remitos[*].estado", everyItem(is("RecibidoYAceptado"))))
@@ -178,81 +198,76 @@ class RecepcionBolsinFlujoTest {
 
     @Test
     @Order(9)
-    void despuesDeRecibir_soloQuedaPendienteEl1002() throws Exception {
-        mvc.perform(get(BASE + "/bolsines"))
+    void despuesDeRecibir_el1001YaNoEstaPendiente() throws Exception {
+        mvc.perform(post(BASE + "/iniciar"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].numero", is(1002)));
-        mvc.perform(get(BASE + "/bolsines/1001"))
+                .andExpect(jsonPath("$.bolsines", hasSize(4)))
+                .andExpect(jsonPath("$.bolsines[*].numero", containsInAnyOrder(1002, 1003, 1004, 1005)));
+        mvc.perform(post(BASE + "/seleccion/1001"))
+                .andExpect(status().isConflict());
+        // finCU() dejo el CU sin bolsin seleccionado.
+        mvc.perform(post(BASE + "/confirmacion"))
                 .andExpect(status().isConflict());
     }
 
     @Test
     @Order(10)
-    void agregarRemito_conUnaDocumentacion() throws Exception {
-        // Pantalla auxiliar "Agregar remito": un remito con una documentacion en el 1002.
-        // El tipo se acepta en minusculas (la API lo pasa a mayusculas).
-        mvc.perform(post("/api/bolsines/1002/remitos")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"asunto\": \"Informe-de-alta\", \"descripcion\": \"Alta medica\", "
-                                + "\"tipoDocumento\": \"informe\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.cantRemitos", is(2)))
-                .andExpect(jsonPath("$.remitos[1].numero", is(503)))
-                .andExpect(jsonPath("$.remitos[1].estado", is("Enviado")))
-                .andExpect(jsonPath("$.remitos[1].documentos", hasSize(1)))
-                .andExpect(jsonPath("$.remitos[1].documentos[0].numero", is(6)))
-                .andExpect(jsonPath("$.remitos[1].documentos[0].tipo", is("INFORME")))
-                .andExpect(jsonPath("$.remitos[1].documentos[0].estado", is("EnBolsinEnviado")));
+    void paso6_iteratorDelBolsin1005ConCuatroDocumentaciones() throws Exception {
+        // Un solo remito (el loop Remitos da 1 vuelta) con 4 documentaciones, una de cada tipo (el loop Detalles da 4).
+        mvc.perform(post(BASE + "/iniciar")).andExpect(status().isOk());
+        mvc.perform(post(BASE + "/seleccion/1005"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bolsin.cantRemitos", is(1)))
+                .andExpect(jsonPath("$.bolsin.cmOrigen.nombre", is("Tucumán")))
+                .andExpect(jsonPath("$.informacionRemito", is(
+                        "Remito #506\n"
+                                + "  Asunto: Reclamo-enfermedad-profesional | Tipo: EXPEDIENTE\n"
+                                + "  Asunto: Informe-psicológico | Tipo: INFORME\n"
+                                + "  Asunto: Certificado-de-reposo | Tipo: CERTIFICADO\n"
+                                + "  Asunto: Constancia-de-turno-junta-médica | Tipo: OTRO\n")));
+    }
 
-        // Un DetalleRemito que apunta a la Documentacion 6, con su cambio de estado inicial a cargo del empleado logueado.
-        assertThat(jdbc.queryForList(
-                "select documentacion_numero from detalle_remito where remito_numero = 503", Integer.class))
-                .containsExactly(6);
+    @Test
+    @Order(11)
+    void datosDePrueba_bolsin1007YaRecibidoConHistorialCoherente() {
+        // Lo arma CargadorDatosDePrueba con Bolsin.recibir(), la misma logica del paso 11.
         List<Map<String, Object>> cambios = jdbc.queryForList("""
+                select e.nombre as estado, ce.fecha_hora_inicio as inicio, ce.fecha_hora_fin as fin,
+                       emp.nombre || ' ' || emp.apellido as responsable
+                from cambio_estado_bolsin ce
+                join estado e on e.id = ce.estado_id
+                join empleado emp on emp.id = ce.empleado_id
+                where ce.bolsin_numero = 1007
+                order by ce.fecha_hora_inicio""");
+        assertThat(cambios).hasSize(2);
+        assertThat(cambios.get(0).get("estado")).isEqualTo("Enviado");
+        assertThat(cambios.get(0).get("responsable")).isEqualTo("Lucía Fernández");
+        assertThat(cambios.get(1).get("estado")).isEqualTo("RecibidoEnCMDestino");
+        assertThat(cambios.get(1).get("responsable")).isEqualTo("Jeronimo Abdala");
+        assertThat(cambios.get(1).get("fin")).isNull();
+        assertThat(cambios.get(0).get("fin")).isEqualTo(cambios.get(1).get("inicio"));
+        assertThat(estadoDelBolsin(1007)).isEqualTo("RecibidoEnCMDestino");
+
+        assertThat(jdbc.queryForObject("""
+                select e.nombre from remito r join estado e on e.id = r.estado_id
+                where r.numero = 508""", String.class)).isEqualTo("RecibidoYAceptado");
+        List<Map<String, Object>> cambiosDoc = jdbc.queryForList("""
                 select e.nombre as estado, ce.fecha_hora_fin as fin,
                        emp.nombre || ' ' || emp.apellido as responsable
                 from cambio_estado_documentacion ce
                 join estado e on e.id = ce.estado_id
                 join empleado emp on emp.id = ce.empleado_id
-                where ce.documentacion_numero = 6""");
-        assertThat(cambios).hasSize(1);
-        assertThat(cambios.get(0).get("estado")).isEqualTo("EnBolsinEnviado");
-        assertThat(cambios.get(0).get("responsable")).isEqualTo("Jeronimo Abdala");
-        assertThat(cambios.get(0).get("fin")).isNull();
-
-        // Paso 6: el Iterator recorre tambien el remito nuevo.
-        mvc.perform(get(BASE + "/bolsines/1002"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.informacionRemito", is(
-                        "Remito #502\n"
-                                + "  Asunto: Turno-derivación | Tipo: EXPEDIENTE\n"
-                                + "Remito #503\n"
-                                + "  Asunto: Informe-de-alta | Tipo: INFORME\n")));
+                where ce.documentacion_numero = 15
+                order by ce.fecha_hora_inicio""");
+        assertThat(cambiosDoc).hasSize(2);
+        assertThat(cambiosDoc.get(0).get("estado")).isEqualTo("EnBolsinEnviado");
+        assertThat(cambiosDoc.get(0).get("fin")).isNotNull();
+        assertThat(cambiosDoc.get(1).get("estado")).isEqualTo("RecibidaYAceptada");
+        assertThat(cambiosDoc.get(1).get("responsable")).isEqualTo("Jeronimo Abdala");
     }
 
-    @Test
-    @Order(11)
-    void agregarRemito_datosInvalidosResponde400YNoCreaNada() throws Exception {
-        mvc.perform(post("/api/bolsines/1002/remitos")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"asunto\": \"   \", \"tipoDocumento\": \"INFORME\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.mensaje", is("El campo 'asunto' es obligatorio.")));
-        mvc.perform(post("/api/bolsines/1002/remitos")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"asunto\": \"X\", \"tipoDocumento\": \"FOTO\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.mensaje", containsString("Tipo de documento invalido")));
-
-        // Siguen los mismos 2 remitos del 1002 y las mismas 6 documentaciones.
-        assertThat(jdbc.queryForObject(
-                "select count(*) from remito where bolsin_numero = 1002", Integer.class)).isEqualTo(2);
-        assertThat(jdbc.queryForObject("select count(*) from documentacion", Integer.class)).isEqualTo(6);
-    }
-
-    private static org.springframework.test.web.servlet.RequestBuilder recibir(int numero, String cuerpo) {
-        return post(BASE + "/bolsines/" + numero + "/recibir")
+    private static org.springframework.test.web.servlet.RequestBuilder opcion(String cuerpo) {
+        return post(BASE + "/opcion")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(cuerpo);
     }

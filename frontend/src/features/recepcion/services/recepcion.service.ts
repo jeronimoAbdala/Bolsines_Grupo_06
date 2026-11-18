@@ -1,26 +1,26 @@
 import { api } from '@/shared/lib/axios';
-import type { Bolsin } from '@/features/bolsines';
-import type { Usuario } from '@/features/usuarios';
-import type { DetalleRecepcion, OpcionRecepcion } from '../types/recepcion.types';
+import type { Bolsin, DetalleRecepcion, VentanaRecepcion } from '../types/recepcion.types';
 
+/** Un metodo por cada endpoint de PantallaRegistrarRecepcionBolsin (backend). */
 export const recepcionService = {
-  getSesion: async (): Promise<Usuario> => {
-    const { data } = await api.get<Usuario>('/recepcion/sesion');
-    return data;
-  },
-
-  getBolsinesEnviados: async (): Promise<Bolsin[]> => {
-    const { data } = await api.get<Bolsin[]>('/recepcion/bolsines');
+  iniciar: async (): Promise<VentanaRecepcion> => {
+    const { data } = await api.post<VentanaRecepcion>('/recepcion/iniciar');
     return data;
   },
 
   seleccionarBolsin: async (numero: number): Promise<DetalleRecepcion> => {
-    const { data } = await api.get<DetalleRecepcion>(`/recepcion/bolsines/${numero}`);
+    const { data } = await api.post<DetalleRecepcion>(`/recepcion/seleccion/${numero}`);
     return data;
   },
 
-  recibir: async ({ numero, opcion }: { numero: number; opcion: OpcionRecepcion }): Promise<Bolsin> => {
-    const { data } = await api.post<Bolsin>(`/recepcion/bolsines/${numero}/recibir`, { opcion });
+  /** Devuelve el numero del bolsin cuya recepcion hay que confirmar. */
+  elegirOpcion: async (opcion: number): Promise<number> => {
+    const { data } = await api.post<number>('/recepcion/opcion', { opcion });
+    return data;
+  },
+
+  confirmar: async (): Promise<Bolsin> => {
+    const { data } = await api.post<Bolsin>('/recepcion/confirmacion');
     return data;
   },
 };

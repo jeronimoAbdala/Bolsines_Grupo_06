@@ -1,6 +1,6 @@
 package main.Presentation.Api;
 
-import main.Presentation.Api.Dto.ErrorDto;
+import main.Dto.ErrorDto;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;

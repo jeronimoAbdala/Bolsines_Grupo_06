@@ -28,7 +28,7 @@ public class Bolsin implements Serializable, IAgregado {
 
     private static final long serialVersionUID = 1L;
 
-    /** Clave natural asignada: la asigna el sistema (obtenerSiguienteNumeroBolsin). */
+    /** Clave natural asignada (no autogenerada): la ponen los datos de prueba (CargadorDatosDePrueba). */
     @Id
     @Column(name = "numero")
     private int numero;
@@ -207,11 +207,11 @@ public class Bolsin implements Serializable, IAgregado {
         this.peso = peso;
     }
 
-    public ComisionMedica getCmOrigen() {
+    public ComisionMedica getCMOrigen() {
         return cmOrigen;
     }
 
-    public ComisionMedica getCmDestino() {
+    public ComisionMedica getCMDestino() {
         return cmDestino;
     }
 

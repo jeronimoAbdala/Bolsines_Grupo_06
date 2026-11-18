@@ -25,7 +25,7 @@ const separarRemitos = (informacionRemito: string): RemitoInformado[] => {
   return remitos;
 };
 
-/** Lo usa mostrarDatosRemito() de la Pantalla (paso 6): muestra la informacion de remitos tal como la armo el Iterator. */
+/** Paso 6: muestra la informacion de remitos tal como la armo el Iterator (la devuelve mostrarDatosRemito() de la Pantalla, en el backend). */
 export const DatosRemito = ({ informacionRemito }: DatosRemitoProps) => {
   const remitos = separarRemitos(informacionRemito);
   if (remitos.length === 0) return <p className="muted">El bolsín no tiene remitos.</p>;

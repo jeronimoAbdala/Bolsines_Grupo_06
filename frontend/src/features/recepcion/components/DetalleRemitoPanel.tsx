@@ -1,20 +1,29 @@
-import type { ReactNode } from 'react';
-import { Alert, Card, EmptyState, Spinner } from '@/shared/components';
+import { Alert, Button, Card, EmptyState, Spinner } from '@/shared/components';
 import { errorMessage } from '@/shared/utils/errorMessage';
 import { formatPeso } from '@/shared/utils/format';
-import { useDetalleRecepcion } from '../hooks/useRecepcion';
+import type { DetalleRecepcion } from '../types/recepcion.types';
+import { DatosRemito } from './DatosRemito';
 
 interface DetalleRemitoPanelProps {
   numero: number | null;
-  /** mostrarDatosRemito() de la Pantalla (paso 6). */
-  mostrarDatosRemito: (informacionRemito: string) => ReactNode;
-  /** mostrarOpcionesRecepcion() de la Pantalla (paso 7). */
-  mostrarOpcionesRecepcion: () => ReactNode;
+  /** Respuesta de la seleccion del bolsin (pasos 5, 6 y 7). */
+  detalle: DetalleRecepcion | undefined;
+  cargando: boolean;
+  error: unknown;
+  opcion: number | null;
+  onCambiarOpcion: (opcion: number) => void;
+  onContinuar: () => void;
 }
 
-export const DetalleRemitoPanel = ({ numero, mostrarDatosRemito, mostrarOpcionesRecepcion }: DetalleRemitoPanelProps) => {
-  const { data, isFetching, error } = useDetalleRecepcion(numero);
-
+export const DetalleRemitoPanel = ({
+  numero,
+  detalle,
+  cargando,
+  error,
+  opcion,
+  onCambiarOpcion,
+  onContinuar,
+}: DetalleRemitoPanelProps) => {
   if (numero === null) {
     return (
       <Card title="Informacion del remito">
@@ -25,20 +34,39 @@ export const DetalleRemitoPanel = ({ numero, mostrarDatosRemito, mostrarOpciones
 
   return (
     <Card title={`Bolsin #${numero}`}>
-      {isFetching && !data && <Spinner />}
-      {error && <Alert tone="error">{errorMessage(error)}</Alert>}
-      {data && (
+      {cargando && <Spinner />}
+      {error !== null && <Alert tone="error">{errorMessage(error)}</Alert>}
+      {detalle && (
         <>
           <dl className="resumen">
-            <div><dt>Origen</dt><dd>{data.bolsin.cmOrigen.nombre}</dd></div>
-            <div><dt>Destino</dt><dd>{data.bolsin.cmDestino.nombre}</dd></div>
-            <div><dt>Precinto</dt><dd>{data.bolsin.nroPrecinto ?? 'N/A'}</dd></div>
-            <div><dt>Peso</dt><dd>{formatPeso(data.bolsin.peso)}</dd></div>
+            <div><dt>Origen</dt><dd>{detalle.bolsin.cmOrigen.nombre}</dd></div>
+            <div><dt>Destino</dt><dd>{detalle.bolsin.cmDestino.nombre}</dd></div>
+            <div><dt>Precinto</dt><dd>{detalle.bolsin.nroPrecinto ?? 'N/A'}</dd></div>
+            <div><dt>Peso</dt><dd>{formatPeso(detalle.bolsin.peso)}</dd></div>
           </dl>
-          {/* Paso 6 (mostrarDatosRemito): remitos y documentaciones armados por el Iterator en el backend. */}
-          {mostrarDatosRemito(data.informacionRemito)}
-          {/* Paso 7 (mostrarOpcionesRecepcion): las 4 opciones de recepcion, despues de los datos. */}
-          {mostrarOpcionesRecepcion()}
+          {/* Paso 6: remitos y documentaciones armados por el Iterator en el backend. */}
+          <DatosRemito informacionRemito={detalle.informacionRemito} />
+          {/* Paso 7: las 4 opciones de recepcion que devuelve el backend, despues de los datos. */}
+          <fieldset className="opciones-recepcion">
+            <legend>Opcion de recepcion</legend>
+            {detalle.opcionesRecepcion.map((texto, i) => (
+              <label key={i + 1}>
+                <input
+                  type="radio"
+                  name="opcion-recepcion"
+                  value={i + 1}
+                  checked={opcion === i + 1}
+                  onChange={() => onCambiarOpcion(i + 1)}
+                />
+                <span>{i + 1}. {texto}</span>
+              </label>
+            ))}
+          </fieldset>
+          <div className="acciones">
+            <Button variant="primary" onClick={onContinuar} disabled={opcion === null}>
+              Continuar
+            </Button>
+          </div>
         </>
       )}
     </Card>

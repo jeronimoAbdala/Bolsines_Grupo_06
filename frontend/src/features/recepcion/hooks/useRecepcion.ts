@@ -1,45 +1,41 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { bolsinKeys } from '@/features/bolsines';
 import { recepcionService } from '../services/recepcion.service';
 
-// Cuelgan de bolsinKeys.all: crear un bolsin o agregar un remito refresca la recepcion.
 export const recepcionKeys = {
-  all: [...bolsinKeys.all, 'recepcion'] as const,
-  sesion: () => ['sesion'] as const,
-  pendientes: () => [...recepcionKeys.all, 'pendientes'] as const,
-  detalle: (numero: number) => [...recepcionKeys.all, 'detalle', numero] as const,
+  all: ['recepcion'] as const,
+  ventana: () => [...recepcionKeys.all, 'ventana'] as const,
 };
 
-export const useSesion = () =>
+// useVentanaRecepcion y useSesion comparten la misma consulta (un solo POST /iniciar, opcRegistrarRecepcionBolsin).
+// staleTime 0: cada vez que se entra a la pantalla se vuelve a iniciar el CU (paso 1).
+export const useVentanaRecepcion = () =>
   useQuery({
-    queryKey: recepcionKeys.sesion(),
-    queryFn: recepcionService.getSesion,
-    staleTime: Infinity,
-  });
-
-export const useBolsinesEnviados = () =>
-  useQuery({
-    queryKey: recepcionKeys.pendientes(),
-    queryFn: recepcionService.getBolsinesEnviados,
-  });
-
-export const useDetalleRecepcion = (numero: number | null) =>
-  useQuery({
-    queryKey: recepcionKeys.detalle(numero ?? 0),
-    queryFn: () => recepcionService.seleccionarBolsin(numero as number),
-    enabled: numero !== null,
+    queryKey: recepcionKeys.ventana(),
+    queryFn: recepcionService.iniciar,
     staleTime: 0,
   });
 
-export const useRecibirBolsin = () => {
+// SesionCard toma solo el usuario logueado.
+export const useSesion = () =>
+  useQuery({
+    queryKey: recepcionKeys.ventana(),
+    queryFn: recepcionService.iniciar,
+    staleTime: 0,
+    select: (ventana) => ventana.usuario,
+  });
+
+// Mutaciones: cada accion del usuario cambia el estado del CU en el Gestor.
+export const useSeleccionarBolsin = () =>
+  useMutation({ mutationFn: recepcionService.seleccionarBolsin });
+
+export const useElegirOpcion = () =>
+  useMutation({ mutationFn: recepcionService.elegirOpcion });
+
+export const useConfirmarRecepcion = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    // Recibe { numero, opcion }: la opcion de recepcion elegida en el paso 8.
-    mutationFn: recepcionService.recibir,
-    // No se invalida el detalle: el bolsin recibido ya no esta pendiente y la consulta daria 409.
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: recepcionKeys.pendientes() });
-      queryClient.invalidateQueries({ queryKey: bolsinKeys.lists() });
-    },
+    mutationFn: () => recepcionService.confirmar(),
+    // Se vuelve a pedir la ventana: el bolsin recibido ya no esta pendiente.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: recepcionKeys.ventana() }),
   });
 };

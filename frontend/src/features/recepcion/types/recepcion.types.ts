@@ -1,17 +1,71 @@
-import type { Bolsin } from '@/features/bolsines';
+// --- JSON de los DTO del backend que usa el CU 28 (ComisionMedicaDto, UsuarioDto, DocumentacionDto, RemitoDto, BolsinDto).
 
-/** Bolsin seleccionado en el CU 28 con la informacion de remitos que arma el gestor. */
+export interface ComisionMedica {
+  codigo: number;
+  nombre: string;
+  direccion: string;
+  email: string;
+  telefono: string;
+}
+
+/** Usuario logueado con su comision medica (paso 2). */
+export interface Usuario {
+  nombreUsuario: string;
+  nombre: string;
+  apellido: string;
+  mail: string;
+  comisionMedica: ComisionMedica;
+}
+
+export interface Documento {
+  numero: number;
+  asunto: string;
+  descripcion: string;
+  tipo: string;
+  estado: string;
+}
+
+export interface Remito {
+  numero: number;
+  fecha: string;
+  estado: string;
+  documentos: Documento[];
+}
+
+/** Encabezado del bolsin seleccionado (paso 5) y bolsin recibido (paso 12). */
+export interface Bolsin {
+  numero: number;
+  fechaGeneracion: string;
+  nroPrecinto: string | null;
+  peso: number;
+  cantRemitos: number;
+  estado: string;
+  cmOrigen: ComisionMedica;
+  cmDestino: ComisionMedica;
+  remitos: Remito[];
+}
+
+// --- Respuestas de PantallaRegistrarRecepcionBolsin.
+
+/** Paso 4: una fila de la lista (la arma la Pantalla del backend; el precinto llega 'N/A' si no hay). */
+export interface BolsinParaSeleccion {
+  numero: number;
+  cmOrigen: string;
+  nroPrecinto: string;
+  cantRemitos: number;
+  estado: string;
+}
+
+/** Respuesta de POST /recepcion/iniciar: usuario logueado con su CM (paso 2), bolsines para seleccionar y el texto que pide elegir uno (paso 4). */
+export interface VentanaRecepcion {
+  usuario: Usuario;
+  bolsines: BolsinParaSeleccion[];
+  solicitudSeleccion: string;
+}
+
+/** Respuesta de POST /recepcion/seleccion/{n}: encabezado, texto del Iterator (paso 6) y las 4 opciones (paso 7). */
 export interface DetalleRecepcion {
   bolsin: Bolsin;
   informacionRemito: string;
+  opcionesRecepcion: string[];
 }
-
-/** Paso 7 del CU 28: opciones de recepcion de la ERS. Solo la 1 esta implementada. */
-export type OpcionRecepcion = 1 | 2 | 3 | 4;
-
-export const OPCIONES_RECEPCION: { valor: OpcionRecepcion; texto: string }[] = [
-  { valor: 1, texto: 'El contenido del bolsín es igual al registrado' },
-  { valor: 2, texto: 'No se recibe toda la documentación asociada a los remitos que contiene el bolsín' },
-  { valor: 3, texto: 'Existe documentación que no corresponde al destino (CM del usuario logueado)' },
-  { valor: 4, texto: 'La documentación se debe redirigir a otra área' },
-];

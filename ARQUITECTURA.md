@@ -1,29 +1,25 @@
 # Bolsines — Arquitectura en capas + Spring Data JPA
 
-> El proyecto está separado en `backend/` (API REST con Spring Boot) y `frontend/` (React + TypeScript). Ver [README.md](README.md) para levantarlo y [CASO_DE_USO_RECEPCION.md](CASO_DE_USO_RECEPCION.md) para el recorrido del CU 28.
+> El proyecto está separado en `backend/` (API REST con Spring Boot) y `frontend/` (React + TypeScript). Tiene solo el CU 28, como el ejemplo de la cátedra: una Pantalla y un Gestor; los datos de prueba se cargan solos al arrancar. Ver [README.md](README.md) para levantarlo y [CASO_DE_USO_RECEPCION.md](CASO_DE_USO_RECEPCION.md) para el recorrido del CU 28.
 
 ## Capas
 
 ```
-Frontend (React) ──HTTP──▶ Presentation (REST) → Controller → Gestor → Repository (interfaz del dominio)
-                                                                              ▲
-                                                             RepositoryImpl ──┘ → Datasource (Spring Data JPA) → Hibernate → H2
-                                                     (las entidades del dominio viajan entre todas las capas)
+Frontend (React) ──HTTP──▶ Pantalla (Presentation) → Gestor → Repository (JpaRepository) → Hibernate → H2
+                           (CU 28: entre la Pantalla y el Gestor viajan DTO; el Gestor trabaja con las entidades)
 ```
 
 | Capa | Paquete | Rol |
 |---|---|---|
-| **Presentation** | `Presentation/Api` | Endpoints REST (`@RestController`), DTOs y manejo de errores. Traducen HTTP ↔ controller y validan la entrada, sin lógica de negocio. |
-| **Controller** | `Controllers` | Intermediario delgado: delega en el gestor. |
-| **Gestor** | `Gestores` | Lógica del caso de uso (`GestorRecepcionBolsin`). |
-| **Repository** | `Domain/Repositories` | **Interfaces** del dominio para acceder a los datos (`BolsinRepository`, `UsuarioRepository`, `EmpleadoRepository`, `EstadoRepository`, `TipoDocumentoRepository`). No dependen de Spring. |
-| **RepositoryImpl** | `Infrastructure/Repositories` | Capa de repositorio que separa el dominio de la tecnología de persistencia: implementa cada interfaz del dominio usando los datasources. |
-| **Datasource** | `Infrastructure/Datasources` | Interfaces Spring Data (`XxxJpaDatasource extends JpaRepository<Entidad, Id>`); Spring genera su implementación. |
+| **Presentation** | `Presentation/Api` | `PantallaRegistrarRecepcionBolsin`: la Pantalla del diagrama del CU 28 es un `@RestController`. Cada mensaje del actor es un endpoint y cada mensaje Gestor → Pantalla es un método privado que arma la respuesta con los DTO que le da el Gestor (no toca entidades). Además, el manejo de errores (`ManejadorErrores`, `ApiException`). Sin lógica de negocio. |
+| **Gestor** | `Gestores` | Lógica del caso de uso (`GestorRecepcionBolsin`, `@Service`). Una sola instancia: guarda el estado del CU entre pedidos. Usa los repositorios directo. |
+| **Dto** | `Dto` | Records que entrega el Gestor y devuelve la API (`VentanaRecepcionDto`, `BolsinParaSeleccionDto`, `DetalleRecepcionDto`, `BolsinDto`, `UsuarioDto`, …) y el cuerpo del POST de la opción de recepción (`Requests.OpcionDeRecepcion`). |
+| **Repository** | `Repositories` | Una interfaz por entidad que extiende `JpaRepository<Entidad, Id>` (`BolsinRepository`, `ComisionMedicaRepository`, `EmpleadoRepository`, `EstadoRepository`, `TipoDocumentoRepository`, `UsuarioRepository`). Spring Data genera la implementación (`findAll`, `findById`, `save`). El Gestor usa los de Bolsin, Empleado y Estado; `CargadorDatosDePrueba` usa todos y `InicioDeSesion` el de Usuario. |
 | **Entities** | `Domain/Entities` | Modelo de dominio, mapeado a tablas con anotaciones JPA (`@Entity`). |
 | **Iterator** | `Domain/Iterator` | Patrón Iterator del paso 6 del CU 28: interfaces `IIterador` e `IAgregado` e iteradores concretos `IteradorRemito` e `IteradorDetalle` (clases comunes, no se persisten). |
-| **Config** | `Config` | `AppConfig` (arma la cadena de capas con `@Bean`), `CargadorDatosDePrueba` e `InicioDeSesion` (tareas de arranque). |
+| **Config** | `Config` | `AppConfig` (CORS), `CargadorDatosDePrueba` e `InicioDeSesion` (tareas de arranque). |
 
-**Regla**: cada capa conoce solo a la siguiente; las dependencias se inyectan por constructor. El Gestor depende de las **interfaces** del dominio, no de JPA.
+**Regla**: la Pantalla le habla directo al Gestor y el Gestor a los repositorios; Spring inyecta las dependencias por constructor. La Pantalla no toca entidades: solo recibe DTO del Gestor.
 
 ## Persistencia
 
@@ -31,7 +27,7 @@ Frontend (React) ──HTTP──▶ Presentation (REST) → Controller → Gest
 
 - Base: `jdbc:h2:file:./db/bolsines` → `backend/db/bolsines.mv.db` (relativa a la carpeta desde la que se levanta el backend; está en `.gitignore`).
 - Esquema: lo crea y actualiza Hibernate a partir de las anotaciones de las entidades (`spring.jpa.hibernate.ddl-auto=update`): no hay SQL a mano.
-- `spring.jpa.open-in-view=true`: la sesión de JPA queda abierta durante todo el request, así el gestor y los DTO pueden recorrer las colecciones (que se cargan bajo demanda, LAZY).
+- `spring.jpa.open-in-view=true`: la sesión de JPA queda abierta durante todo el request, así el gestor y los DTO pueden recorrer las colecciones (que se cargan bajo demanda, LAZY). Como el Gestor guarda el bolsín seleccionado de un pedido al siguiente, en la selección y en la confirmación lo vuelve a leer con `findById` (las colecciones LAZY de una entidad de un pedido anterior ya no se pueden cargar).
 - Datos de prueba: `CargadorDatosDePrueba` los carga al iniciar, **solo si la base está vacía**, usando los repositorios.
 - Sesión: `InicioDeSesion` crea la `Sesion` del usuario configurado en `bolsines.usuario-logueado` (no hay login).
 - Para reiniciar los datos: apagar el backend y borrar `backend/db/`.
@@ -51,7 +47,7 @@ Frontend (React) ──HTTP──▶ Presentation (REST) → Controller → Gest
 | Empleado → Usuario | `@OneToOne` (FK `usuario_nombre`, única) | PERSIST, MERGE |
 | → Estado, ComisionMedica, TipoDocumento, Empleado (en los cambios de estado) | `@ManyToOne` | ninguna (catálogos / datos maestros) |
 
-Con estas cascadas, un solo `guardar(bolsin)` persiste el paso 11 completo (estados de bolsín, remitos y documentación, y sus historiales) en una transacción.
+Con estas cascadas, un solo `save(bolsin)` persiste el paso 11 completo (estados de bolsín, remitos y documentación, y sus historiales) en una transacción.
 
 ## Entidades
 
@@ -87,11 +83,11 @@ El paso 6 ("para cada remito muestra el número y, para cada documentación, el 
 - **Recorrido anidado**: `Bolsin.obtenerInformacionRemito()` recorre los remitos con un `IteradorRemito`; por cada uno, `Remito.buscarDocumentacion()` recorre sus detalles con un `IteradorDetalle` propio y le pide a cada `DetalleRemito.getDocumentacion()` (que consulta a su Documentacion y esta a su TipoDocumento).
 - El iterador es una **variable local** del método que lo crea: al terminar el recorrido queda sin referencias (la X del diagrama de secuencia).
 - Las colecciones de las entidades siguen siendo `List` (JPA no mapea arreglos) y se pasan al iterador con `toArray()`. El patrón no cambia el esquema: el atributo `Remito.detalleRemito` se mapea con `@JoinColumn(name = "remito_numero")`, igual que antes.
-- La API devuelve el texto en `informacionRemito` (`GET /api/recepcion/bolsines/{n}`) y el frontend lo muestra con `DatosRemito.tsx` en el panel del bolsín seleccionado. Las demás pantallas (modal de recepción exitosa, página de Bolsines) siguen usando los DTO.
+- La API devuelve el texto en `informacionRemito` (`POST /api/recepcion/seleccion/{n}`, método `mostrarDatosRemito()` de la Pantalla) y el frontend lo muestra con `DatosRemito.tsx` en el panel del bolsín seleccionado. El modal de recepción exitosa sigue usando los DTO (estados nuevos de remitos y documentación).
 - Se usa **solo en el paso 6** (lo acordado con el tutor); los demás recorridos (paso 3, paso 11, estados) siguen con `for` sobre `List`.
 - En los datos de prueba el remito 500 tiene 3 documentaciones (un `DetalleRemito` por cada una), así el loop Detalles da varias vueltas.
 
-**Filtro del paso 4 (flujos A1 y A2)**: se resuelve en el **frontend**, sobre la lista de bolsines pendientes que ya devuelve `GET /api/recepcion/bolsines` (`filtrarBolsines()` en `features/recepcion/utils/filtroBolsines.ts`, formulario `FiltroBolsines`). No hay método en el Gestor ni endpoint, porque no están en los diagramas.
+**Filtro del paso 4 (flujos A1 y A2)**: se resuelve en el **frontend**, sobre la lista de bolsines pendientes que ya devuelve `POST /api/recepcion/iniciar` (`filtrarBolsines()` en `features/recepcion/utils/filtroBolsines.ts`, formulario `FiltroBolsines`). No hay método en el Gestor ni endpoint, porque no están en los diagramas.
 
 **Estados precargados** (nombres de los diagramas):
 
@@ -119,21 +115,18 @@ backend/
     ├── main/java/main/
     │   ├── BolsinesApplication.java   (arranque Spring Boot)
     │   ├── Config/                    (AppConfig, CargadorDatosDePrueba, InicioDeSesion)
-    │   ├── Presentation/Api/          (RestControllers, Dto, errores)
-    │   ├── Controllers/               (intermediario)
+    │   ├── Presentation/Api/          (PantallaRegistrarRecepcionBolsin, errores)
+    │   ├── Dto/                       (records de la API y cuerpos de los POST)
     │   ├── Gestores/                  (caso de uso)
+    │   ├── Repositories/              (interfaces JpaRepository)
     │   ├── Domain/Entities/           (entidades JPA)
-    │   ├── Domain/Iterator/           (patrón Iterator: IIterador, IAgregado, IteradorRemito, IteradorDetalle)
-    │   ├── Domain/Repositories/       (interfaces del dominio)
-    │   └── Infrastructure/
-    │       ├── Repositories/          (RepositoryImpl)
-    │       └── Datasources/           (interfaces Spring Data JPA)
+    │   └── Domain/Iterator/           (patrón Iterator: IIterador, IAgregado, IteradorRemito, IteradorDetalle)
     ├── main/resources/application.properties
     └── test/                          (RecepcionBolsinFlujoTest, tests unitarios de Domain/Iterator y
                                         del recorrido anidado en Domain/Entities, application-test.properties)
 frontend/
 └── src/
-    ├── features/                      (recepcion, bolsines, comisiones, usuarios, inicio)
+    ├── features/                      (recepcion: el CU 28; inicio: portada sin llamadas a la API)
     │   └── <feature>/{components,hooks,services,types}   (recepcion/utils: filtro del paso 4, A1 y A2)
     ├── shared/                        (componentes UI, axios, queryClient, utils)
     ├── router/                        (rutas)
