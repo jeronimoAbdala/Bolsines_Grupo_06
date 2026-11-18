@@ -22,7 +22,7 @@ const normalizar = (texto: string): string =>
 
 /**
  * Filtra en la pantalla la lista que ya devolvio el backend (pasos 3 y 4): no hay endpoint ni metodo del Gestor.
- * - Precinto: coincidencia exacta (es un identificador). Un bolsin sin precinto nunca coincide.
+ * - Precinto: coincidencia exacta (es un identificador). Un bolsin sin precinto llega como 'N/A' (mostrarNroPrecinto()).
  * - CM origen: coincidencia parcial sobre el nombre ("buenos" encuentra "Buenos Aires").
  * Sin filtro aplicado (null) devuelve la lista completa.
  */
@@ -30,7 +30,7 @@ export const filtrarBolsines = (bolsines: BolsinParaSeleccion[], filtro: FiltroB
   if (filtro === null) return bolsines;
   const buscado = normalizar(filtro.valor);
   if (filtro.criterio === 'precinto') {
-    return bolsines.filter((b) => b.nroPrecinto !== null && normalizar(b.nroPrecinto) === buscado);
+    return bolsines.filter((b) => normalizar(b.nroPrecinto) === buscado);
   }
   return bolsines.filter((b) => normalizar(b.cmOrigen).includes(buscado));
 };

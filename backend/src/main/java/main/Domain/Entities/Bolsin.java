@@ -207,11 +207,11 @@ public class Bolsin implements Serializable, IAgregado {
         this.peso = peso;
     }
 
-    public ComisionMedica getCmOrigen() {
+    public ComisionMedica getCMOrigen() {
         return cmOrigen;
     }
 
-    public ComisionMedica getCmDestino() {
+    public ComisionMedica getCMDestino() {
         return cmDestino;
     }
 

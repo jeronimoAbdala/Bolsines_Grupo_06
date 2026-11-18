@@ -13,7 +13,7 @@ public record BolsinDto(int numero, LocalDate fechaGeneracion, String nroPrecint
     public static BolsinDto de(Bolsin b) {
         return new BolsinDto(b.getNumero(), b.getFechaGeneracion(), b.getNroPrecinto(), b.getPeso(),
                 b.getRemitos().size(), b.getEstado().getNombre(),
-                ComisionMedicaDto.de(b.getCmOrigen()), ComisionMedicaDto.de(b.getCmDestino()),
+                ComisionMedicaDto.de(b.getCMOrigen()), ComisionMedicaDto.de(b.getCMDestino()),
                 b.getRemitos().stream().map(RemitoDto::de).toList());
     }
 }

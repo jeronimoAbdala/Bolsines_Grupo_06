@@ -1,7 +1,9 @@
 package main.Presentation.Api;
 
 import main.Dto.BolsinDto;
+import main.Dto.BolsinEnviadoDto;
 import main.Dto.BolsinParaSeleccionDto;
+import main.Dto.ComisionMedicaDto;
 import main.Dto.DetalleRecepcionDto;
 import main.Dto.Requests;
 import main.Dto.UsuarioDto;
@@ -9,6 +11,7 @@ import main.Dto.VentanaRecepcionDto;
 import main.Gestores.GestorRecepcionBolsin;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -45,7 +48,7 @@ public class PantallaRegistrarRecepcionBolsin {
     // habilitarVentana() — paso 1
     private VentanaRecepcionDto habilitarVentana() {
         gestor.opRegistrarRecepcionBolsin();
-        return new VentanaRecepcionDto(mostrarCM(), mostrarBolsinesParaSeleccion());
+        return new VentanaRecepcionDto(mostrarCM(), mostrarBolsinesParaSeleccion(), solicitarSeleccionBolsin());
     }
 
     // mostrarCM() — paso 2
@@ -57,9 +60,29 @@ public class PantallaRegistrarRecepcionBolsin {
         return usuario;
     }
 
-    // mostrarBolsinesParaSeleccion() — paso 4
+    // mostrarBolsinesParaSeleccion() — paso 4: una fila por cada bolsin que entrega el Gestor
     private List<BolsinParaSeleccionDto> mostrarBolsinesParaSeleccion() {
-        return gestor.getBolsinesParaSeleccion();
+        List<BolsinParaSeleccionDto> filas = new ArrayList<>();
+        for (BolsinEnviadoDto bolsin : gestor.getBolsinesEnviados()) {
+            filas.add(new BolsinParaSeleccionDto(bolsin.numero(), mostrarCMOrigen(bolsin.cmOrigen()),
+                    mostrarNroPrecinto(bolsin.nroPrecinto()), bolsin.cantRemitos(), bolsin.estado()));
+        }
+        return filas;
+    }
+
+    // mostrarCMOrigen() — paso 4: nombre de la CM origen
+    private String mostrarCMOrigen(ComisionMedicaDto cmOrigen) {
+        return cmOrigen.nombre();
+    }
+
+    // mostrarNroPrecinto() — paso 4: 'N/A' si el bolsin no tiene precinto
+    private String mostrarNroPrecinto(String nroPrecinto) {
+        return nroPrecinto == null ? "N/A" : nroPrecinto;
+    }
+
+    // solicitarSeleccionBolsin() — paso 4
+    private String solicitarSeleccionBolsin() {
+        return "Seleccione un bolsín para registrar su recepción";
     }
 
     // tomarSeleccionBolsin() — paso 5 (con numero: decision P1)

@@ -2,7 +2,8 @@ package main.Gestores;
 
 import main.Domain.Entities.*;
 import main.Dto.BolsinDto;
-import main.Dto.BolsinParaSeleccionDto;
+import main.Dto.BolsinEnviadoDto;
+import main.Dto.ComisionMedicaDto;
 import main.Dto.UsuarioDto;
 import main.Repositories.BolsinRepository;
 import main.Repositories.ComisionMedicaRepository;
@@ -30,8 +31,8 @@ public class GestorRecepcionBolsin {
     private Empleado empleadoLogueado;
 
     private List<Bolsin> bolsinesSeleccionados = new ArrayList<>();
-    /** Una fila por cada bolsin de bolsinesSeleccionados: lo que la Pantalla muestra en el paso 4. */
-    private List<BolsinParaSeleccionDto> bolsinesParaSeleccion = new ArrayList<>();
+    /** Datos de cada bolsin de bolsinesSeleccionados para la Pantalla (paso 4), sin entidades. */
+    private List<BolsinEnviadoDto> bolsinesEnviados = new ArrayList<>();
     private String informacionRemito;
     private int opcionDeRecepcion;
     private LocalDateTime fechaHoraActual;
@@ -86,12 +87,12 @@ public class GestorRecepcionBolsin {
     // buscarBolsinesEnviados() — paso 3: *sosEnviado(), *esTuCM(); getCMOrigen() y getNroPrecinto() — paso 4
     public void buscarBolsinesEnviados(String cm) {
         this.bolsinesSeleccionados = new ArrayList<>();
-        this.bolsinesParaSeleccion = new ArrayList<>();
+        this.bolsinesEnviados = new ArrayList<>();
         for (Bolsin bolsin : bolsinRepository.findAll()) {
             if (bolsin.sosEnviado() && bolsin.esTuCM(cm)) {
                 bolsinesSeleccionados.add(bolsin);
-                bolsinesParaSeleccion.add(new BolsinParaSeleccionDto(bolsin.getNumero(),
-                        bolsin.getCmOrigen().getNombre(), bolsin.getNroPrecinto(),
+                bolsinesEnviados.add(new BolsinEnviadoDto(bolsin.getNumero(),
+                        ComisionMedicaDto.de(bolsin.getCMOrigen()), bolsin.getNroPrecinto(),
                         bolsin.getRemitos().size(), bolsin.getEstado().getNombre()));
             }
         }
@@ -198,7 +199,7 @@ public class GestorRecepcionBolsin {
         this.bolsinSeleccionado = null;
         this.informacionRemito = null;
         this.bolsinesSeleccionados = new ArrayList<>();
-        this.bolsinesParaSeleccion = new ArrayList<>();
+        this.bolsinesEnviados = new ArrayList<>();
     }
 
     // --- Lo que la Pantalla lee del CU (siempre DTO: la Pantalla no toca entidades).
@@ -208,9 +209,9 @@ public class GestorRecepcionBolsin {
         return empleadoLogueado == null ? null : UsuarioDto.de(empleadoLogueado);
     }
 
-    /** Filas del paso 4. */
-    public List<BolsinParaSeleccionDto> getBolsinesParaSeleccion() {
-        return bolsinesParaSeleccion;
+    /** Datos de los bolsines enviados a la CM del empleado logueado (paso 4). */
+    public List<BolsinEnviadoDto> getBolsinesEnviados() {
+        return bolsinesEnviados;
     }
 
     /** Encabezado del bolsin seleccionado (paso 5); null si no hay. */

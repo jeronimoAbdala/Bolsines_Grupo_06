@@ -65,7 +65,7 @@ public class BolsinRestController {
         synchronized (gestor) {
             int remitoNumero = gestor.obtenerSiguienteNumeroRemito();
             gestor.crearRemitoConDocumentacion(numero, remitoNumero,
-                    bolsin.getCmOrigen(), bolsin.getCmDestino(),
+                    bolsin.getCMOrigen(), bolsin.getCMDestino(),
                     asunto, Validar.opcional(req.descripcion()), tipo);
             return BolsinDto.de(buscar(numero));
         }

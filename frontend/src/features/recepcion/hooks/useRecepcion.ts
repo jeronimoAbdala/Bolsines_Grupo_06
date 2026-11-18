@@ -8,7 +8,14 @@ export const recepcionKeys = {
   ventana: () => [...recepcionKeys.all, 'ventana'] as const,
 };
 
-// useSesion y useBolsinesEnviados comparten la misma consulta (un solo POST /iniciar); cada uno toma su parte.
+// useVentanaRecepcion, useSesion y useBolsinesEnviados comparten la misma consulta (un solo POST /iniciar).
+export const useVentanaRecepcion = () =>
+  useQuery({
+    queryKey: recepcionKeys.ventana(),
+    queryFn: recepcionService.iniciar,
+  });
+
+// Cada uno toma su parte de la ventana.
 export const useSesion = () =>
   useQuery({
     queryKey: recepcionKeys.ventana(),

@@ -120,11 +120,11 @@ public class Remito implements Serializable, IAgregado {
         return fecha;
     }
 
-    public ComisionMedica getCmOrigen() {
+    public ComisionMedica getCMOrigen() {
         return cmOrigen;
     }
 
-    public ComisionMedica getCmDestino() {
+    public ComisionMedica getCMDestino() {
         return cmDestino;
     }
 

@@ -75,13 +75,15 @@ class RecepcionBolsinFlujoTest {
     @Test
     @Order(3)
     void paso3y4_bolsinesEnviadosALaCMDelEmpleado() throws Exception {
-        // Cada fila la arma el Gestor en el loop con getCmOrigen() y getNroPrecinto().
+        // El Gestor pide getCMOrigen() y getNroPrecinto() en el loop; la Pantalla arma cada fila
+        // con mostrarCMOrigen() y mostrarNroPrecinto(), y agrega el texto de solicitarSeleccionBolsin().
         mvc.perform(post(BASE + "/iniciar"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.bolsines[*].numero", containsInAnyOrder(1001, 1002)))
                 .andExpect(jsonPath("$.bolsines[*].estado", everyItem(is("Enviado"))))
                 .andExpect(jsonPath("$.bolsines[*].cmOrigen", everyItem(is("Buenos Aires"))))
-                .andExpect(jsonPath("$.bolsines[*].nroPrecinto", containsInAnyOrder("PREC-001", "PREC-002")));
+                .andExpect(jsonPath("$.bolsines[*].nroPrecinto", containsInAnyOrder("PREC-001", "PREC-002")))
+                .andExpect(jsonPath("$.solicitudSeleccion", is("Seleccione un bolsín para registrar su recepción")));
     }
 
     @Test
