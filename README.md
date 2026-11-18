@@ -100,7 +100,7 @@ cd backend
 mvn test
 ```
 
-Corre `RecepcionBolsinFlujoTest`, que recorre el CU 28 completo por la API (sesión, bolsines pendientes, detalle con el texto del Iterator, opciones no implementadas, recepción con la opción 1, historial de estados y la pantalla auxiliar "Agregar remito"). Usa una base H2 **en memoria**, así que no toca los datos de `backend/db/`.
+Corre `RecepcionBolsinFlujoTest`, que recorre el CU 28 completo por los endpoints de la Pantalla (iniciar, selección con el texto del Iterator, opción —las no implementadas responden 501— y confirmación con la opción 1), el historial de estados y la pantalla auxiliar "Agregar remito". Usa una base H2 **en memoria**, así que no toca los datos de `backend/db/`.
 
 También corre los tests unitarios del patrón Iterator del paso 6, sin base ni Spring: `IteradorRemitoTest` e `IteradorDetalleTest` (orden, fin del recorrido, `primero()` reinicia, colección vacía) y `RecorridoIteratorTest` (recorrido anidado Bolsín → Remito → Detalle y el texto que arma).
 
@@ -108,15 +108,17 @@ También corre los tests unitarios del patrón Iterator del paso 6, sin base ni 
 
 | Método | Ruta | Paso del CU 28 / uso |
 |---|---|---|
-| GET | `/api/recepcion/sesion` | Usuario logueado y su comisión médica |
-| GET | `/api/recepcion/bolsines` | Bolsines en estado Enviado hacia la CM del usuario |
-| GET | `/api/recepcion/bolsines/{numero}` | Selección del bolsín + información de remitos |
-| POST | `/api/recepcion/bolsines/{numero}/recibir` | Registra la recepción. Cuerpo: `{ "opcion": 1 }` (opción de recepción elegida) |
+| POST | `/api/recepcion/iniciar` | Pasos 1 a 4 (`opcRegistrarRecepcionBolsin()`): usuario logueado con su comisión médica y bolsines en estado Enviado hacia esa CM |
+| POST | `/api/recepcion/seleccion/{numero}` | Pasos 5 a 7 (`tomarSeleccionBolsin()`): selección del bolsín, información de remitos (Iterator) y las 4 opciones de recepción |
+| POST | `/api/recepcion/opcion` | Paso 8 (`tomarOpcionDeRecepcion()`). Cuerpo: `{ "opcion": 1 }`. Responde el número del bolsín a confirmar |
+| POST | `/api/recepcion/confirmacion` | Pasos 10 a 12 (`tomarConfirmacion()`): registra la recepción y devuelve el bolsín recibido |
 | GET / POST | `/api/bolsines` | Listar / crear bolsín |
 | POST | `/api/bolsines/{numero}/remitos` | Agregar remito con documentación |
 | GET / POST | `/api/comisiones` | Listar / crear comisión médica |
 | GET / POST | `/api/usuarios` | Listar / crear usuario |
 
-Los errores vuelven como `{ "mensaje": "..." }` con 400 (datos inválidos), 404 (no existe), 409 (el bolsín no está pendiente) o 501 (opción de recepción 2, 3 o 4: no implementada).
+Los errores vuelven como `{ "mensaje": "..." }` con 400 (datos inválidos), 404 (no existe), 409 (el bolsín no está pendiente o no hay un bolsín seleccionado) o 501 (opción de recepción 2, 3 o 4: "Opción no implementada").
+
+Los endpoints de `/api/recepcion` son los mensajes del actor de la Pantalla del diagrama de secuencia (`PantallaRegistrarRecepcionBolsin`, un `@RestController`). El Gestor guarda el estado del CU entre un pedido y el siguiente, por eso van en orden: iniciar → selección → opción → confirmación.
 
 Más detalle en [ARQUITECTURA.md](ARQUITECTURA.md) (capas, persistencia, entidades) y [CASO_DE_USO_RECEPCION.md](CASO_DE_USO_RECEPCION.md) (qué clase y método resuelve cada paso del CU 28).

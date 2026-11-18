@@ -1,4 +1,4 @@
-import type { Bolsin } from '@/features/bolsines';
+import type { BolsinParaSeleccion } from '../types/recepcion.types';
 
 /** Paso 4 del CU 28: dato por el que se filtra la lista de bolsines pendientes (uno a la vez). */
 export type CriterioFiltro = 'precinto' | 'cmOrigen';
@@ -26,13 +26,13 @@ const normalizar = (texto: string): string =>
  * - CM origen: coincidencia parcial sobre el nombre ("buenos" encuentra "Buenos Aires").
  * Sin filtro aplicado (null) devuelve la lista completa.
  */
-export const filtrarBolsines = (bolsines: Bolsin[], filtro: FiltroBolsin | null): Bolsin[] => {
+export const filtrarBolsines = (bolsines: BolsinParaSeleccion[], filtro: FiltroBolsin | null): BolsinParaSeleccion[] => {
   if (filtro === null) return bolsines;
   const buscado = normalizar(filtro.valor);
   if (filtro.criterio === 'precinto') {
     return bolsines.filter((b) => b.nroPrecinto !== null && normalizar(b.nroPrecinto) === buscado);
   }
-  return bolsines.filter((b) => normalizar(b.cmOrigen.nombre).includes(buscado));
+  return bolsines.filter((b) => normalizar(b.cmOrigen).includes(buscado));
 };
 
 /**

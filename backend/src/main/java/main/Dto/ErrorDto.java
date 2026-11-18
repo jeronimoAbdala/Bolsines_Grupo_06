@@ -1,4 +1,4 @@
-package main.Presentation.Api.Dto;
+package main.Dto;
 
 public record ErrorDto(String mensaje) {
 }

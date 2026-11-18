@@ -1,6 +1,5 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Alert, Badge, Button, Card, EmptyState, Spinner } from '@/shared/components';
-import type { Bolsin } from '@/features/bolsines';
 import { errorMessage } from '@/shared/utils/errorMessage';
 import { useBolsinesEnviados } from '../hooks/useRecepcion';
 import {
@@ -15,18 +14,9 @@ import { FiltroBolsines } from './FiltroBolsines';
 interface BolsinesPendientesTableProps {
   seleccionado: number | null;
   onSeleccionar: (numero: number) => void;
-  /** mostrarCMOrigen() de la Pantalla (paso 4). */
-  mostrarCMOrigen: (bolsin: Bolsin) => ReactNode;
-  /** mostrarNroPrecinto() de la Pantalla (paso 4). */
-  mostrarNroPrecinto: (bolsin: Bolsin) => ReactNode;
 }
 
-export const BolsinesPendientesTable = ({
-  seleccionado,
-  onSeleccionar,
-  mostrarCMOrigen,
-  mostrarNroPrecinto,
-}: BolsinesPendientesTableProps) => {
+export const BolsinesPendientesTable = ({ seleccionado, onSeleccionar }: BolsinesPendientesTableProps) => {
   const { data: bolsines, isLoading, error } = useBolsinesEnviados();
   // Paso 4: "borrador" es lo que se esta escribiendo; "filtro" es lo aplicado con Filtrar (null = listado completo).
   const [borrador, setBorrador] = useState<FiltroBolsin>(FILTRO_VACIO);
@@ -88,8 +78,9 @@ export const BolsinesPendientesTable = ({
                   onKeyDown={(e) => e.key === 'Enter' && onSeleccionar(b.numero)}
                 >
                   <td><strong>#{b.numero}</strong></td>
-                  <td>{mostrarCMOrigen(b)}</td>
-                  <td>{mostrarNroPrecinto(b)}</td>
+                  {/* Paso 4: CM origen y precinto de cada bolsin (getCmOrigen() y getNroPrecinto() en el Gestor). */}
+                  <td>{b.cmOrigen}</td>
+                  <td>{b.nroPrecinto ?? 'N/A'}</td>
                   <td className="num">{b.cantRemitos}</td>
                   <td><Badge label={b.estado} /></td>
                 </tr>

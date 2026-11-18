@@ -22,16 +22,17 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * CU 28 de punta a punta, sin tocar la base de archivo: API REST -> Controller -> Gestor -> repositorios -> Hibernate -> H2 en memoria.
- * Los metodos corren EN ORDEN y comparten la misma base: primero se verifica el estado inicial,
- * despues se recibe el 1001 y se verifica el historial; al final, la pantalla auxiliar "Agregar remito"
- * (sobre el 1002, despues de las verificaciones que lo miran).
+ * CU 28 de punta a punta, sin tocar la base de archivo: PantallaRegistrarRecepcionBolsin (REST) -> Gestor
+ * -> repositorios (JpaRepository) -> Hibernate -> H2 en memoria.
+ * Los metodos corren EN ORDEN y comparten la misma base y el mismo Gestor (guarda el estado del CU entre
+ * pedidos): primero se verifica el estado inicial, despues se recibe el 1001 y se verifica el historial;
+ * al final, la pantalla auxiliar "Agregar remito" (sobre el 1002, despues de las verificaciones que lo miran).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -65,19 +66,22 @@ class RecepcionBolsinFlujoTest {
     @Test
     @Order(2)
     void paso2_sesionDelEmpleadoLogueado() throws Exception {
-        mvc.perform(get(BASE + "/sesion"))
+        mvc.perform(post(BASE + "/iniciar"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nombreUsuario", is("jero")))
-                .andExpect(jsonPath("$.comisionMedica.nombre", is("Cordoba")));
+                .andExpect(jsonPath("$.usuario.nombreUsuario", is("jero")))
+                .andExpect(jsonPath("$.usuario.comisionMedica.nombre", is("Cordoba")));
     }
 
     @Test
     @Order(3)
     void paso3y4_bolsinesEnviadosALaCMDelEmpleado() throws Exception {
-        mvc.perform(get(BASE + "/bolsines"))
+        // Cada fila la arma el Gestor en el loop con getCmOrigen() y getNroPrecinto().
+        mvc.perform(post(BASE + "/iniciar"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].numero", containsInAnyOrder(1001, 1002)))
-                .andExpect(jsonPath("$[*].estado", everyItem(is("Enviado"))));
+                .andExpect(jsonPath("$.bolsines[*].numero", containsInAnyOrder(1001, 1002)))
+                .andExpect(jsonPath("$.bolsines[*].estado", everyItem(is("Enviado"))))
+                .andExpect(jsonPath("$.bolsines[*].cmOrigen", everyItem(is("Buenos Aires"))))
+                .andExpect(jsonPath("$.bolsines[*].nroPrecinto", containsInAnyOrder("PREC-001", "PREC-002")));
     }
 
     @Test
@@ -85,9 +89,10 @@ class RecepcionBolsinFlujoTest {
     void paso5y6_remitosYDocumentacionDelBolsinSeleccionado() throws Exception {
         // informacionRemito es lo que armo el Iterator (Bolsin -> Remito -> DetalleRemito) con los datos de prueba.
         // El remito 500 tiene 3 documentaciones de tipos distintos: el loop Detalles da 3 vueltas en el 500 y 1 en el 501.
-        mvc.perform(get(BASE + "/bolsines/1001"))
+        mvc.perform(post(BASE + "/seleccion/1001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.bolsin.cantRemitos", is(2)))
+                .andExpect(jsonPath("$.opcionesRecepcion", hasSize(4)))
                 .andExpect(jsonPath("$.informacionRemito", is(
                         "Remito #500\n"
                                 + "  Asunto: Expediente-cardiológico | Tipo: EXPEDIENTE\n"
@@ -100,11 +105,15 @@ class RecepcionBolsinFlujoTest {
     @Test
     @Order(5)
     void opcionNoImplementada_responde501YNoCambiaNada() throws Exception {
-        mvc.perform(recibir(1001, "{\"opcion\":2}"))
+        // Sigue seleccionado el 1001 (paso 5 del test anterior).
+        mvc.perform(opcion("{\"opcion\":2}"))
                 .andExpect(status().isNotImplemented())
-                .andExpect(jsonPath("$.mensaje", containsString("no implementada")));
-        mvc.perform(recibir(1001, "{\"opcion\":9}"))
+                .andExpect(jsonPath("$.mensaje", is("Opción no implementada")));
+        mvc.perform(opcion("{\"opcion\":9}"))
                 .andExpect(status().isBadRequest());
+        // Con la opcion 2 guardada en el Gestor, confirmar no registra nada.
+        mvc.perform(post(BASE + "/confirmacion"))
+                .andExpect(status().isConflict());
 
         assertThat(estadoDelBolsin(1001)).isEqualTo("Enviado");
         assertThat(jdbc.queryForObject(
@@ -114,7 +123,13 @@ class RecepcionBolsinFlujoTest {
     @Test
     @Order(6)
     void paso11_recibirConOpcion1() throws Exception {
-        mvc.perform(recibir(1001, "{\"opcion\":1}"))
+        mvc.perform(post(BASE + "/iniciar")).andExpect(status().isOk());
+        mvc.perform(post(BASE + "/seleccion/1001")).andExpect(status().isOk());
+        // solicitarConfirmacion(): el numero del bolsin que se pide confirmar.
+        mvc.perform(opcion("{\"opcion\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("1001"));
+        mvc.perform(post(BASE + "/confirmacion"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado", is("RecibidoEnCMDestino")))
                 .andExpect(jsonPath("$.remitos[*].estado", everyItem(is("RecibidoYAceptado"))))
@@ -179,11 +194,14 @@ class RecepcionBolsinFlujoTest {
     @Test
     @Order(9)
     void despuesDeRecibir_soloQuedaPendienteEl1002() throws Exception {
-        mvc.perform(get(BASE + "/bolsines"))
+        mvc.perform(post(BASE + "/iniciar"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].numero", is(1002)));
-        mvc.perform(get(BASE + "/bolsines/1001"))
+                .andExpect(jsonPath("$.bolsines", hasSize(1)))
+                .andExpect(jsonPath("$.bolsines[0].numero", is(1002)));
+        mvc.perform(post(BASE + "/seleccion/1001"))
+                .andExpect(status().isConflict());
+        // finCU() dejo el CU sin bolsin seleccionado.
+        mvc.perform(post(BASE + "/confirmacion"))
                 .andExpect(status().isConflict());
     }
 
@@ -222,7 +240,8 @@ class RecepcionBolsinFlujoTest {
         assertThat(cambios.get(0).get("fin")).isNull();
 
         // Paso 6: el Iterator recorre tambien el remito nuevo.
-        mvc.perform(get(BASE + "/bolsines/1002"))
+        mvc.perform(post(BASE + "/iniciar")).andExpect(status().isOk());
+        mvc.perform(post(BASE + "/seleccion/1002"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.informacionRemito", is(
                         "Remito #502\n"
@@ -251,8 +270,8 @@ class RecepcionBolsinFlujoTest {
         assertThat(jdbc.queryForObject("select count(*) from documentacion", Integer.class)).isEqualTo(6);
     }
 
-    private static org.springframework.test.web.servlet.RequestBuilder recibir(int numero, String cuerpo) {
-        return post(BASE + "/bolsines/" + numero + "/recibir")
+    private static org.springframework.test.web.servlet.RequestBuilder opcion(String cuerpo) {
+        return post(BASE + "/opcion")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(cuerpo);
     }

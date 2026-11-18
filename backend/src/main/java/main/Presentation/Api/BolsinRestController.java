@@ -1,10 +1,10 @@
 package main.Presentation.Api;
 
-import main.Controllers.RecepcionBolsinController;
+import main.Gestores.GestorRecepcionBolsin;
 import main.Domain.Entities.Bolsin;
 import main.Domain.Entities.ComisionMedica;
-import main.Presentation.Api.Dto.BolsinDto;
-import main.Presentation.Api.Dto.Requests;
+import main.Dto.BolsinDto;
+import main.Dto.Requests;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,15 +16,15 @@ public class BolsinRestController {
 
     private static final List<String> TIPOS_DOCUMENTO = List.of("EXPEDIENTE", "INFORME", "CERTIFICADO", "OTRO");
 
-    private final RecepcionBolsinController controller;
+    private final GestorRecepcionBolsin gestor;
 
-    public BolsinRestController(RecepcionBolsinController controller) {
-        this.controller = controller;
+    public BolsinRestController(GestorRecepcionBolsin gestor) {
+        this.gestor = gestor;
     }
 
     @GetMapping
     public List<BolsinDto> listar() {
-        return controller.obtenerTodosBolsines().stream().map(BolsinDto::de).toList();
+        return gestor.obtenerTodosBolsines().stream().map(BolsinDto::de).toList();
     }
 
     @GetMapping("/{numero}")
@@ -45,9 +45,9 @@ public class BolsinRestController {
         ComisionMedica origen = buscarComision(req.cmOrigenCodigo());
         ComisionMedica destino = buscarComision(req.cmDestinoCodigo());
 
-        synchronized (controller) {
-            int numero = controller.obtenerSiguienteNumeroBolsin();
-            controller.crearBolsin(numero, precinto, req.peso(), origen, destino);
+        synchronized (gestor) {
+            int numero = gestor.obtenerSiguienteNumeroBolsin();
+            gestor.crearBolsin(numero, precinto, req.peso(), origen, destino);
             return BolsinDto.de(buscar(numero));
         }
     }
@@ -62,9 +62,9 @@ public class BolsinRestController {
         }
         Bolsin bolsin = buscar(numero);
 
-        synchronized (controller) {
-            int remitoNumero = controller.obtenerSiguienteNumeroRemito();
-            controller.crearRemitoConDocumentacion(numero, remitoNumero,
+        synchronized (gestor) {
+            int remitoNumero = gestor.obtenerSiguienteNumeroRemito();
+            gestor.crearRemitoConDocumentacion(numero, remitoNumero,
                     bolsin.getCmOrigen(), bolsin.getCmDestino(),
                     asunto, Validar.opcional(req.descripcion()), tipo);
             return BolsinDto.de(buscar(numero));
@@ -72,7 +72,7 @@ public class BolsinRestController {
     }
 
     private Bolsin buscar(int numero) {
-        Bolsin bolsin = controller.buscarBolsinPorNumero(numero);
+        Bolsin bolsin = gestor.buscarBolsinPorNumero(numero);
         if (bolsin == null) {
             throw ApiException.noEncontrado("No existe el Bolsin #" + numero + ".");
         }
@@ -80,7 +80,7 @@ public class BolsinRestController {
     }
 
     private ComisionMedica buscarComision(int codigo) {
-        return controller.obtenerComisionesMedicas().stream()
+        return gestor.obtenerComisionesMedicas().stream()
                 .filter(cm -> cm.getCodigo() == codigo)
                 .findFirst()
                 .orElseThrow(() -> ApiException.invalido("No existe la comision medica con codigo " + codigo + "."));

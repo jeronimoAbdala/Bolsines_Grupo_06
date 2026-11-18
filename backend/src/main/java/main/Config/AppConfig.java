@@ -1,7 +1,5 @@
 package main.Config;
 
-import main.Controllers.RecepcionBolsinController;
-import main.Gestores.GestorRecepcionBolsin;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,11 +12,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  */
 @Configuration
 public class AppConfig {
-
-    @Bean
-    public RecepcionBolsinController recepcionBolsinController(GestorRecepcionBolsin gestor) {
-        return new RecepcionBolsinController(gestor);
-    }
 
     @Bean
     public WebMvcConfigurer corsConfigurer(@Value("${bolsines.cors.origen}") String origen) {

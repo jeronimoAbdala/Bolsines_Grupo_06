@@ -1,9 +1,9 @@
 package main.Presentation.Api;
 
-import main.Controllers.RecepcionBolsinController;
+import main.Gestores.GestorRecepcionBolsin;
 import main.Domain.Entities.ComisionMedica;
-import main.Presentation.Api.Dto.Requests;
-import main.Presentation.Api.Dto.UsuarioDto;
+import main.Dto.Requests;
+import main.Dto.UsuarioDto;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,15 +13,15 @@ import java.util.List;
 @RequestMapping("/api/usuarios")
 public class UsuarioRestController {
 
-    private final RecepcionBolsinController controller;
+    private final GestorRecepcionBolsin gestor;
 
-    public UsuarioRestController(RecepcionBolsinController controller) {
-        this.controller = controller;
+    public UsuarioRestController(GestorRecepcionBolsin gestor) {
+        this.gestor = gestor;
     }
 
     @GetMapping
     public List<UsuarioDto> listar() {
-        return controller.obtenerTodosEmpleados().stream().map(UsuarioDto::de).toList();
+        return gestor.obtenerTodosEmpleados().stream().map(UsuarioDto::de).toList();
     }
 
     @PostMapping
@@ -31,19 +31,19 @@ public class UsuarioRestController {
         String password = Validar.requerido(req.password(), "password");
         String nombre = Validar.requerido(req.nombre(), "nombre");
         String apellido = Validar.requerido(req.apellido(), "apellido");
-        boolean repetido = controller.obtenerTodosEmpleados().stream()
+        boolean repetido = gestor.obtenerTodosEmpleados().stream()
                 .anyMatch(e -> e.getUsuario().getNombreUsuario().equalsIgnoreCase(nombreUsuario));
         if (repetido) {
             throw ApiException.conflicto("Ya existe el usuario '" + nombreUsuario + "'.");
         }
-        ComisionMedica cm = controller.obtenerComisionesMedicas().stream()
+        ComisionMedica cm = gestor.obtenerComisionesMedicas().stream()
                 .filter(c -> c.getCodigo() == req.comisionMedicaCodigo())
                 .findFirst()
                 .orElseThrow(() -> ApiException.invalido("No existe la comision medica con codigo "
                         + req.comisionMedicaCodigo() + "."));
 
-        controller.crearUsuario(nombreUsuario, password, nombre, apellido, Validar.opcional(req.mail()), cm);
-        return controller.obtenerTodosEmpleados().stream()
+        gestor.crearUsuario(nombreUsuario, password, nombre, apellido, Validar.opcional(req.mail()), cm);
+        return gestor.obtenerTodosEmpleados().stream()
                 .filter(e -> e.getUsuario().getNombreUsuario().equals(nombreUsuario))
                 .findFirst()
                 .map(UsuarioDto::de)

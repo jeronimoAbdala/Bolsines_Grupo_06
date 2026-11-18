@@ -673,3 +673,46 @@ Remito #501
 - Frontend: archivo renombrado (sin git), `index.ts`, `router/index.tsx`, `BolsinesPendientesTable.tsx` (props `mostrarCMOrigen`/`mostrarNroPrecinto`), `DetalleRemitoPanel.tsx` (props `mostrarDatosRemito`/`mostrarOpcionesRecepcion`; se le quitó el estado `opcion`), `DatosRemito.tsx` (solo comentario).
 - Docs: `CASO_DE_USO_RECEPCION.md` (cadena de clases, pasos 1, 2, 4, 5, 6, 7, 8, 9, 10 y 12, flujos A3–A6). `README.md`, `ARQUITECTURA.md` y `DECISIONES_ORM.md` sin cambios (decisión del usuario).
 - Verificación: `npx tsc -b` OK y `npx vite build` OK (178 módulos). Archivos en CRLF.
+
+## 8. Arquitectura como la cátedra
+
+**Objetivo**: reorganizar el proyecto como la arquitectura de la cátedra, siguiendo el diagrama de secuencia corregido del CU 28 ("DiagSecuenciaCorregido2"; no está en el repo: el `.drawio` solo tiene la "Secuencia con Iterator (pasos 5 a 10)"). La Pantalla del diagrama es un `@RestController` que le habla directo al Gestor; el Gestor guarda el estado del CU entre pedidos y usa los repositorios (`JpaRepository`) directo. No se tocaron el Iterator ni la lógica del dominio (Entities).
+
+### 8.1 Decisiones (aprobadas)
+
+| # | Decisión |
+|---|---|
+| 1 | **Persistencia**: cada repositorio es una interfaz que extiende `JpaRepository`, en `main.Repositories`: `BolsinRepository`, `ComisionMedicaRepository` (era `ComisionMedicaJpaDatasource`), `EmpleadoRepository`, `EstadoRepository`, `TipoDocumentoRepository` y `UsuarioRepository`. Se borraron `Domain/Repositories`, los 5 `*RepositoryImpl` y los 8 `*JpaDatasource` (carpeta `Infrastructure/`) |
+| 2 | Se usan los métodos de `JpaRepository`: `findAll()`, `findById(...).orElse(null)` y `save()`. `BolsinRepository` suma las 3 consultas JPQL `obtenerSiguienteNumeroBolsin/Remito/Documentacion()`, así no hacen falta repositorios de Remito y Documentacion solo para numerar |
+| 3 | Lo que tenían las Impl: `agregarRemitoABolsin` (buscar, `agregarRemito`, guardar) pasó a `Gestor.crearRemitoConDocumentacion()`; `crearComisionMedica` pasó a `comisionMedicaRepository.save(new ComisionMedica(...))`, en el Gestor y en `CargadorDatosDePrueba`. El resto eran llamadas directas al datasource |
+| 4 | El Gestor es `@Service`: Spring crea una sola instancia y le inyecta los repositorios por constructor. `AppConfig` quedó solo con el CORS |
+| 5 | **Sin capa Controllers**: se borró `RecepcionBolsinController`. Los RestControllers auxiliares (bolsines, comisiones, usuarios) le hablan directo al Gestor |
+| 6 | **La Pantalla en Java**: `RecepcionRestController` pasó a llamarse `PantallaRegistrarRecepcionBolsin` (`Presentation/Api`). Un endpoint por cada mensaje del actor: `opcRegistrarRecepcionBolsin()`, `tomarSeleccionBolsin()`, `tomarOpcionDeRecepcion()` y `tomarConfirmacion()`. La opción y la confirmación, que antes viajaban juntas en un POST, se separaron |
+| 7 | La Pantalla **no toca entidades**: solo recibe DTO del Gestor (`getUsuarioLogueado()`, `getBolsinesParaSeleccion()`, `getDatosBolsinSeleccionado()`, `getInformacionRemito()` y lo que devuelve `tomarConfirmacion()`). La regla vale solo para el CU 28: las pantallas auxiliares siguen recibiendo entidades del Gestor y las pasan a DTO |
+| 8 | **Mensajes Gestor → Pantalla**: en el diagrama el Gestor llama a la Pantalla, pero en la web el pedido HTTP entra por la Pantalla. Entonces la Pantalla llama al Gestor y, con lo que le entrega, llama a sus propios métodos privados, que arman la respuesta: `habilitarVentana()`, `mostrarCM()` (404 si no hay usuario logueado), `mostrarBolsinesParaSeleccion()`, `mostrarDatosRemito()` (el String del Iterator), `mostrarOpcionesRecepcion()` (los 4 textos de la ERS pasaron del frontend a la Pantalla Java), `solicitarConfirmacion()` (número del bolsín que se pide confirmar) e `informarRecepcion()` (409 si no se registró nada) |
+| 9 | ⚠️ **Mensajes sin método en la Pantalla Java**, porque no tendrían nada real que hacer: `mostrarCMOrigen()` y `mostrarNroPrecinto()` corresponden a `getCmOrigen()`/`getNroPrecinto()` en el loop de `buscarBolsinesEnviados(cm)` del Gestor (que arma cada fila, `BolsinParaSeleccionDto`) más las columnas Origen y Precinto de cada fila. `solicitarSeleccionBolsin()` corresponde a la tabla que permite elegir una fila. `getCmOrigen()` no se renombró a `getCMOrigen()` del diagrama (coherencia con `getCmDestino()` y `Remito.getCmOrigen()`) |
+| 10 | **Gestor según el diagrama**: `opRegistrarRecepcionBolsin()` hace `buscarUsuarioLogueado()` → `empleadoLogueado.getCM()` → `buscarBolsinesEnviados(cm)` (ya no hace `getFechaYHoraActual()`). Se borraron `Gestor.getCM()` (volvía a buscar el usuario), `registrarRecepcionBolsin()` y el atributo `opcionSeleccionada` (no se usaba). `tomarConfirmacion()` (sin parámetro) sigue este orden: 3 `obtenerEstado…()` → `getFechaYHoraActual()` → `bolsinSeleccionado.recibir(..., empleadoLogueado, ...)` → `save` (persistencia) → `llamarCU29()` (vacío: el CU 29 no se implementa) → `finCU()` |
+| 11 | `tomarConfirmacion()` devuelve el `BolsinDto` armado **antes** de `finCU()`, así `informarRecepcion()` tiene sus datos. Sin bolsín seleccionado o sin la opción 1 devuelve null, y la Pantalla responde 409 |
+| 12 | `finCU()` además vacía `bolsinesSeleccionados` y `bolsinesParaSeleccion`: un bolsín recibido no se puede volver a elegir hasta que se vuelve a pedir la ventana |
+| 13 | `tomarSeleccionBolsin(n)` elige entre los bolsines que se mostraron (`esTuNumero(n)` sobre `bolsinesSeleccionados`; si no está, 409). Como el Gestor guarda la entidad de un pedido anterior y sus colecciones LAZY ya no se pueden cargar, el bolsín se vuelve a leer con `findById` en la selección y en la confirmación. Es persistencia, no está en el diagrama. Los endpoints se sincronizan con el Gestor |
+| 14 | DTO en `main.Dto`, junto con `Requests` y `ErrorDto`. Nuevos: `VentanaRecepcionDto` (usuario y filas) y `BolsinParaSeleccionDto` (fila del paso 4). `DetalleRecepcionDto` suma `opcionesRecepcion`; `Requests.RecibirBolsin` pasó a llamarse `OpcionDeRecepcion` |
+| 15 | Opciones 2, 3 y 4 (A3, A4, A5): la Pantalla responde 501 con el texto exacto "Opción no implementada" y la web muestra ese mensaje. El Gestor guarda la opción igual, así nunca queda una opción anterior |
+| 16 | A6 (cancelar en la confirmación): solo en el frontend, no llama a la API. El Gestor conserva el bolsín y la opción (el `tomarConfirmacion()` del diagrama no lleva parámetro) |
+| 17 | **Frontend con React Query**: `PantallaRegistrarRecepcionBolsin.tsx` pasó a llamarse `RecepcionPage.tsx`, con funciones de nombres comunes (`seleccionarBolsin`, `continuar`, `confirmar`, `cancelar`); la única `PantallaRegistrarRecepcionBolsin` es la de Java. `useSesion` y `useBolsinesEnviados` comparten la consulta `POST /iniciar`; selección, opción y confirmación son mutaciones; después de confirmar se invalida la ventana y la lista se recarga. `BolsinesPendientesTable` y `DetalleRemitoPanel` dibujan sus partes (se quitaron las props `mostrar…` de la sección 7.6). Las demás pantallas no cambiaron |
+
+### 8.2 Endpoints
+
+| Antes | Después | Pantalla → Gestor |
+|---|---|---|
+| `GET /api/recepcion/sesion` + `GET /api/recepcion/bolsines` | `POST /api/recepcion/iniciar` | `opcRegistrarRecepcionBolsin()` → `habilitarVentana()` → `opRegistrarRecepcionBolsin()` |
+| `GET /api/recepcion/bolsines/{n}` | `POST /api/recepcion/seleccion/{n}` | `tomarSeleccionBolsin(n)` → `tomarSeleccionBolsin(n)` |
+| `POST /api/recepcion/bolsines/{n}/recibir` `{opcion}` | `POST /api/recepcion/opcion` `{opcion}` | `tomarOpcionDeRecepcion()` → `tomarOpcionDeRecepcion(opcion)` |
+| (el mismo POST) | `POST /api/recepcion/confirmacion` | `tomarConfirmacion()` → `tomarConfirmacion()` |
+
+### 8.3 Bitácora
+
+- **Etapa 1 — Persistencia**: interfaces `JpaRepository` en `main/Repositories`; Gestor (`@Service`), `CargadorDatosDePrueba` e `InicioDeSesion` con `findAll`/`findById`/`save`; `AppConfig` sin los beans de repositorios ni del Gestor. `RecepcionBolsinFlujoTest` sin cambios. `mvn test`: 26 tests, 0 fallas.
+- **Etapa 2 — Pantalla, sin Controllers y Gestor**: `PantallaRegistrarRecepcionBolsin` (4 endpoints), Gestor según el diagrama, DTO en `main.Dto`, RestControllers auxiliares directo al Gestor, `Controllers/` borrado y `AppConfig` solo con el CORS. `RecepcionBolsinFlujoTest` adaptado a los endpoints nuevos (más: confirmar con la opción 2 → 409; confirmar después de recibir → 409); los tests del Iterator no se tocaron. `mvn test`: 26 tests, 0 fallas.
+- **Etapa 3 — Frontend**: recepción adaptada a los endpoints nuevos (types, service, hooks, `RecepcionPage`, panel, tabla, filtro, `index.ts`, router). `npx tsc -b` OK y `npx vite build` OK.
+- **Etapa 4 — Docs**: `README.md` (API, tests), `ARQUITECTURA.md` (capas, persistencia, estructura), `CASO_DE_USO_RECEPCION.md` (paso → endpoint → método, pasos 10 y 11, flujos alternativos, errores) y esta sección. `DECISIONES_ORM.md` sin cambios: describe la versión anterior, con Impl y Datasources.
+- Todos los archivos en CRLF; no se tocó git ni `backend/db/`.

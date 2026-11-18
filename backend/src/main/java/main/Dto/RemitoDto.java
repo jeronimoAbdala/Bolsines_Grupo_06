@@ -1,4 +1,4 @@
-package main.Presentation.Api.Dto;
+package main.Dto;
 
 import main.Domain.Entities.Remito;
 

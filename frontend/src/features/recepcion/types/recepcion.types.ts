@@ -1,17 +1,24 @@
 import type { Bolsin } from '@/features/bolsines';
+import type { Usuario } from '@/features/usuarios';
 
-/** Bolsin seleccionado en el CU 28 con la informacion de remitos que arma el gestor. */
+/** Paso 4: una fila de la lista (la arma el Gestor con getCmOrigen() y getNroPrecinto()). */
+export interface BolsinParaSeleccion {
+  numero: number;
+  cmOrigen: string;
+  nroPrecinto: string | null;
+  cantRemitos: number;
+  estado: string;
+}
+
+/** Respuesta de POST /recepcion/iniciar: usuario logueado con su CM (paso 2) y bolsines para seleccionar (paso 4). */
+export interface VentanaRecepcion {
+  usuario: Usuario;
+  bolsines: BolsinParaSeleccion[];
+}
+
+/** Respuesta de POST /recepcion/seleccion/{n}: encabezado, texto del Iterator (paso 6) y las 4 opciones (paso 7). */
 export interface DetalleRecepcion {
   bolsin: Bolsin;
   informacionRemito: string;
+  opcionesRecepcion: string[];
 }
-
-/** Paso 7 del CU 28: opciones de recepcion de la ERS. Solo la 1 esta implementada. */
-export type OpcionRecepcion = 1 | 2 | 3 | 4;
-
-export const OPCIONES_RECEPCION: { valor: OpcionRecepcion; texto: string }[] = [
-  { valor: 1, texto: 'El contenido del bolsín es igual al registrado' },
-  { valor: 2, texto: 'No se recibe toda la documentación asociada a los remitos que contiene el bolsín' },
-  { valor: 3, texto: 'Existe documentación que no corresponde al destino (CM del usuario logueado)' },
-  { valor: 4, texto: 'La documentación se debe redirigir a otra área' },
-];

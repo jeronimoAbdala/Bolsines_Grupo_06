@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { Layout, type NavItem } from '@/shared/components';
 import { InicioPage } from '@/features/inicio';
-import { PantallaRegistrarRecepcionBolsin } from '@/features/recepcion';
+import { RecepcionPage } from '@/features/recepcion';
 import { AgregarRemitoPage, BolsinesPage, CrearBolsinPage } from '@/features/bolsines';
 import { ComisionesPage } from '@/features/comisiones';
 import { UsuariosPage } from '@/features/usuarios';
@@ -19,7 +19,7 @@ export const router = createBrowserRouter([
     element: <Layout navItems={navItems} />,
     children: [
       { path: '/', element: <InicioPage /> },
-      { path: '/recepcion', element: <PantallaRegistrarRecepcionBolsin /> },
+      { path: '/recepcion', element: <RecepcionPage /> },
       { path: '/bolsines', element: <BolsinesPage /> },
       { path: '/bolsines/nuevo', element: <CrearBolsinPage /> },
       { path: '/bolsines/remito', element: <AgregarRemitoPage /> },
