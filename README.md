@@ -45,15 +45,22 @@ Abrí http://localhost:5173. En desarrollo Vite redirige `/api` al backend, así
 | Dato | Valor |
 |---|---|
 | Usuario logueado | `jero` — Jeronimo Abdala, CM **Cordoba** |
-| Otro empleado | `mlopez` — María López, CM **Buenos Aires** (responsable de los envíos) |
+| Otros empleados (responsables de los envíos de su CM) | `mlopez` — María López, CM **Buenos Aires** · `lfernandez` — Lucía Fernández, CM **Rosario** · `mgomez` — Martín Gómez, CM **Mendoza** · `sruiz` — Sofía Ruiz, CM **Tucumán** (password de todos: `1234`) |
 | Bolsín 1001 | Buenos Aires → Cordoba, precinto PREC-001, 2,5 kg — **Enviado**. Remito 500 con **3 documentaciones** (Expediente-cardiológico: EXPEDIENTE; Informe-electrocardiograma: INFORME; Certificado-de-aptitud: CERTIFICADO) y remito 501 con 1 (Estudios-complementarios: EXPEDIENTE) |
 | Bolsín 1002 | Buenos Aires → Cordoba, precinto PREC-002, 1,2 kg — **Enviado**. Remito 502 con 1 documentación (Turno-derivación: EXPEDIENTE) |
+| Bolsín 1003 | Rosario → Cordoba, precinto PREC-003, 0,8 kg — **Enviado**. Remito 503 con 1 documentación (Dictamen-de-incapacidad: EXPEDIENTE) |
+| Bolsín 1004 | Mendoza → Cordoba, precinto PREC-004, 3,1 kg — **Enviado**. Remito 504 con 2 documentaciones (Informe-traumatológico: INFORME; Certificado-de-alta-médica: CERTIFICADO) y remito 505 con 1 (Historia-clínica-laboral: EXPEDIENTE) |
+| Bolsín 1005 | Tucumán → Cordoba, precinto PREC-005, 2,0 kg — **Enviado**. Remito 506 con **4 documentaciones**, una de cada tipo (Reclamo-enfermedad-profesional: EXPEDIENTE; Informe-psicológico: INFORME; Certificado-de-reposo: CERTIFICADO; Constancia-de-turno-junta-médica: OTRO) |
+| Bolsín 1006 | Mendoza → **Buenos Aires**, precinto PREC-006 — **Enviado**. Remito 507 (Informe-audiométrico: INFORME). **No aparece** en la lista de jero: va a otra CM (`esTuCM()` da falso) |
+| Bolsín 1007 | Rosario → Cordoba, precinto PREC-007 — **ya RecibidoEnCMDestino** (lo recibió jero un día después del envío; remito 508 RecibidoYAceptado y su documentación Certificado-de-discapacidad RecibidaYAceptada). **No aparece**: ya no está enviado (`sosEnviado()` da falso) |
+
+Cada bolsín se envió un día distinto (entre 2 y 8 días antes de cargar los datos).
 
 > **Si ya tenías la base creada** (de antes de estos datos), borrá `backend/db/` para que se carguen los datos de prueba nuevos: el backend solo los carga cuando la base está vacía. Ver [Cómo reiniciar los datos de prueba](#cómo-reiniciar-los-datos-de-prueba).
 
 ## Cómo recorrer el CU 28 en la pantalla
 
-Entrá al menú **Registrar recepcion**. Arriba se ve el usuario logueado (Jeronimo Abdala) y su comisión médica (Cordoba); abajo, los bolsines enviados a esa comisión (1001 y 1002, en amarillo).
+Entrá al menú **Registrar recepcion**. Arriba se ve el usuario logueado (Jeronimo Abdala) y su comisión médica (Cordoba); abajo, los bolsines enviados a esa comisión (1001 a 1005, en amarillo). El 1006 (va a Buenos Aires) y el 1007 (ya recibido) no aparecen.
 
 **Flujo principal (opción 1)**
 
@@ -61,7 +68,7 @@ Entrá al menú **Registrar recepcion**. Arriba se ve el usuario logueado (Jeron
 2. Elegí la opción **1. El contenido del bolsín es igual al registrado** y tocá **Continuar**.
 3. En la ventana de confirmación tocá **Confirmar recepcion**.
 4. Aparece "Recepcion registrada": el bolsín queda **RecibidoEnCMDestino** (verde), sus remitos **RecibidoYAceptado** y su documentación **RecibidaYAceptada**. Tocá **Listo**.
-5. En la tabla queda solo el **1002**: el 1001 ya no está pendiente de recepción.
+5. En la tabla quedan el **1002 al 1005**: el 1001 ya no está pendiente de recepción.
 
 Para volver a tener los dos bolsines pendientes: borrá `backend/db/` y reiniciá el backend (ver [Cómo reiniciar los datos de prueba](#cómo-reiniciar-los-datos-de-prueba)).
 
@@ -69,10 +76,10 @@ Para volver a tener los dos bolsines pendientes: borrá `backend/db/` y reinici�
 
 Arriba de la tabla está **Filtrar por**: se elige el dato (Número de precinto o CM origen), se escribe el valor y se toca **Filtrar** (o Enter). Se filtra por un dato a la vez, sin distinguir mayúsculas ni tildes.
 
-1. Precinto (coincidencia exacta): elegí **Número de precinto**, escribí `PREC-001` y tocá **Filtrar**. Queda solo el **1001** y arriba se ve "Filtrado por número de precinto "PREC-001": 1 de 2 bolsines."
+1. Precinto (coincidencia exacta): elegí **Número de precinto**, escribí `PREC-001` y tocá **Filtrar**. Queda solo el **1001** y arriba se ve "Filtrado por número de precinto "PREC-001": 1 de 5 bolsines."
 2. **A1**: escribí `PREC-999` y tocá **Filtrar**. En lugar de la tabla aparece **No se encontró ningún bolsín con el número de precinto "PREC-999".** Tocá **Limpiar filtro**: vuelve el listado completo.
 3. CM origen (coincidencia parcial): elegí **CM origen**, escribí `buenos` y tocá **Filtrar**. Quedan el 1001 y el 1002.
-4. **A2**: escribí `Rosario` y tocá **Filtrar**. Aparece **No se encontró ningún bolsín con la CM de origen "Rosario".** Tocá **Limpiar filtro**.
+4. **A2**: escribí `Salta` y tocá **Filtrar**. Aparece **No se encontró ningún bolsín con la CM de origen "Salta".** Tocá **Limpiar filtro**. (`Rosario` sí encuentra el 1003.)
 
 **Flujo alternativo A6 (cancelar)**
 
@@ -90,7 +97,7 @@ Arriba de la tabla está **Filtrar por**: se elige el dato (Número de precinto 
 2. Borrá la carpeta `backend/db/`:
    - PowerShell, desde `backend/`: `Remove-Item -Recurse -Force db`
    - Git Bash, desde `backend/`: `rm -rf db`
-3. Volvé a levantar el backend: al encontrar la base vacía carga de nuevo los datos de prueba (1001 y 1002 en Enviado, con el remito 500 de 3 documentaciones).
+3. Volvé a levantar el backend: al encontrar la base vacía carga de nuevo los datos de prueba (1001 a 1005 pendientes para Cordoba, 1006 enviado a Buenos Aires y 1007 ya recibido).
 4. Si aparece "Port 8080 was already in use", quedó corriendo un backend anterior: cerrá el proceso `java` (Administrador de tareas) y volvé a levantarlo.
 
 ## Tests

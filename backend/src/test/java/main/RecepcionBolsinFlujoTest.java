@@ -31,7 +31,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * -> repositorios (JpaRepository) -> Hibernate -> H2 en memoria.
  * Los metodos corren EN ORDEN y comparten la misma base y el mismo Gestor (guarda el estado del CU entre
  * pedidos): primero se verifica el estado inicial, despues se recibe el 1001 y se verifica el historial;
- * al final, que solo quede pendiente el 1002.
+ * al final, que el 1001 ya no este pendiente, el Iterator del 1005 (4 documentaciones) y el historial del 1007,
+ * que los datos de prueba cargan ya recibido.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -76,12 +77,15 @@ class RecepcionBolsinFlujoTest {
     void paso3y4_bolsinesEnviadosALaCMDelEmpleado() throws Exception {
         // El Gestor pide getCMOrigen() y getNroPrecinto() en el loop; la Pantalla arma cada fila
         // con mostrarCMOrigen() y mostrarNroPrecinto(), y agrega el texto de solicitarSeleccionBolsin().
+        // No aparecen el 1006 (enviado a Buenos Aires: esTuCM() da falso) ni el 1007 (ya recibido: sosEnviado() da falso).
         mvc.perform(post(BASE + "/iniciar"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.bolsines[*].numero", containsInAnyOrder(1001, 1002)))
+                .andExpect(jsonPath("$.bolsines[*].numero", containsInAnyOrder(1001, 1002, 1003, 1004, 1005)))
                 .andExpect(jsonPath("$.bolsines[*].estado", everyItem(is("Enviado"))))
-                .andExpect(jsonPath("$.bolsines[*].cmOrigen", everyItem(is("Buenos Aires"))))
-                .andExpect(jsonPath("$.bolsines[*].nroPrecinto", containsInAnyOrder("PREC-001", "PREC-002")))
+                .andExpect(jsonPath("$.bolsines[*].cmOrigen",
+                        containsInAnyOrder("Buenos Aires", "Buenos Aires", "Rosario", "Mendoza", "Tucumán")))
+                .andExpect(jsonPath("$.bolsines[*].nroPrecinto",
+                        containsInAnyOrder("PREC-001", "PREC-002", "PREC-003", "PREC-004", "PREC-005")))
                 .andExpect(jsonPath("$.solicitudSeleccion", is("Seleccione un bolsín para registrar su recepción")));
     }
 
@@ -194,16 +198,72 @@ class RecepcionBolsinFlujoTest {
 
     @Test
     @Order(9)
-    void despuesDeRecibir_soloQuedaPendienteEl1002() throws Exception {
+    void despuesDeRecibir_el1001YaNoEstaPendiente() throws Exception {
         mvc.perform(post(BASE + "/iniciar"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.bolsines", hasSize(1)))
-                .andExpect(jsonPath("$.bolsines[0].numero", is(1002)));
+                .andExpect(jsonPath("$.bolsines", hasSize(4)))
+                .andExpect(jsonPath("$.bolsines[*].numero", containsInAnyOrder(1002, 1003, 1004, 1005)));
         mvc.perform(post(BASE + "/seleccion/1001"))
                 .andExpect(status().isConflict());
         // finCU() dejo el CU sin bolsin seleccionado.
         mvc.perform(post(BASE + "/confirmacion"))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    @Order(10)
+    void paso6_iteratorDelBolsin1005ConCuatroDocumentaciones() throws Exception {
+        // Un solo remito (el loop Remitos da 1 vuelta) con 4 documentaciones, una de cada tipo (el loop Detalles da 4).
+        mvc.perform(post(BASE + "/iniciar")).andExpect(status().isOk());
+        mvc.perform(post(BASE + "/seleccion/1005"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bolsin.cantRemitos", is(1)))
+                .andExpect(jsonPath("$.bolsin.cmOrigen.nombre", is("Tucumán")))
+                .andExpect(jsonPath("$.informacionRemito", is(
+                        "Remito #506\n"
+                                + "  Asunto: Reclamo-enfermedad-profesional | Tipo: EXPEDIENTE\n"
+                                + "  Asunto: Informe-psicológico | Tipo: INFORME\n"
+                                + "  Asunto: Certificado-de-reposo | Tipo: CERTIFICADO\n"
+                                + "  Asunto: Constancia-de-turno-junta-médica | Tipo: OTRO\n")));
+    }
+
+    @Test
+    @Order(11)
+    void datosDePrueba_bolsin1007YaRecibidoConHistorialCoherente() {
+        // Lo arma CargadorDatosDePrueba con Bolsin.recibir(), la misma logica del paso 11.
+        List<Map<String, Object>> cambios = jdbc.queryForList("""
+                select e.nombre as estado, ce.fecha_hora_inicio as inicio, ce.fecha_hora_fin as fin,
+                       emp.nombre || ' ' || emp.apellido as responsable
+                from cambio_estado_bolsin ce
+                join estado e on e.id = ce.estado_id
+                join empleado emp on emp.id = ce.empleado_id
+                where ce.bolsin_numero = 1007
+                order by ce.fecha_hora_inicio""");
+        assertThat(cambios).hasSize(2);
+        assertThat(cambios.get(0).get("estado")).isEqualTo("Enviado");
+        assertThat(cambios.get(0).get("responsable")).isEqualTo("Lucía Fernández");
+        assertThat(cambios.get(1).get("estado")).isEqualTo("RecibidoEnCMDestino");
+        assertThat(cambios.get(1).get("responsable")).isEqualTo("Jeronimo Abdala");
+        assertThat(cambios.get(1).get("fin")).isNull();
+        assertThat(cambios.get(0).get("fin")).isEqualTo(cambios.get(1).get("inicio"));
+        assertThat(estadoDelBolsin(1007)).isEqualTo("RecibidoEnCMDestino");
+
+        assertThat(jdbc.queryForObject("""
+                select e.nombre from remito r join estado e on e.id = r.estado_id
+                where r.numero = 508""", String.class)).isEqualTo("RecibidoYAceptado");
+        List<Map<String, Object>> cambiosDoc = jdbc.queryForList("""
+                select e.nombre as estado, ce.fecha_hora_fin as fin,
+                       emp.nombre || ' ' || emp.apellido as responsable
+                from cambio_estado_documentacion ce
+                join estado e on e.id = ce.estado_id
+                join empleado emp on emp.id = ce.empleado_id
+                where ce.documentacion_numero = 15
+                order by ce.fecha_hora_inicio""");
+        assertThat(cambiosDoc).hasSize(2);
+        assertThat(cambiosDoc.get(0).get("estado")).isEqualTo("EnBolsinEnviado");
+        assertThat(cambiosDoc.get(0).get("fin")).isNotNull();
+        assertThat(cambiosDoc.get(1).get("estado")).isEqualTo("RecibidaYAceptada");
+        assertThat(cambiosDoc.get(1).get("responsable")).isEqualTo("Jeronimo Abdala");
     }
 
     private static org.springframework.test.web.servlet.RequestBuilder opcion(String cuerpo) {
