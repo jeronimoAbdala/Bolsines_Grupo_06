@@ -7,7 +7,6 @@ CU 28 **Registrar recepción de bolsín**, separado en dos proyectos. Como el ej
 | [`backend/`](backend) | API REST con el gestor, los repositorios y las entidades del dominio. | Java 21, Spring Boot 3, Spring Data JPA + Hibernate, H2 |
 | [`frontend/`](frontend) | Interfaz web que consume la API. | React 18, TypeScript, Vite, React Query, React Router |
 
-![Registrar recepción](docs/capturas/recepcion.png)
 
 ## Requisitos
 
