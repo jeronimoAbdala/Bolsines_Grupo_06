@@ -9,11 +9,11 @@ import main.Domain.Entities.Estado;
 import main.Domain.Entities.Remito;
 import main.Domain.Entities.TipoDocumento;
 import main.Domain.Entities.Usuario;
-import main.Domain.Repositories.BolsinRepository;
-import main.Domain.Repositories.EmpleadoRepository;
-import main.Domain.Repositories.EstadoRepository;
-import main.Domain.Repositories.TipoDocumentoRepository;
-import main.Domain.Repositories.UsuarioRepository;
+import main.Repositories.BolsinRepository;
+import main.Repositories.ComisionMedicaRepository;
+import main.Repositories.EmpleadoRepository;
+import main.Repositories.EstadoRepository;
+import main.Repositories.TipoDocumentoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -26,7 +26,7 @@ import java.time.LocalDateTime;
 
 /**
  * Datos de prueba: se cargan al iniciar, SOLO si la base no tiene ningun Estado,
- * usando los repositorios del dominio (sin SQL a mano). Corre antes que InicioDeSesion.
+ * usando los repositorios (sin SQL a mano). Corre antes que InicioDeSesion.
  */
 @Component
 @Order(1)
@@ -36,25 +36,25 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
 
     private final EstadoRepository estadoRepository;
     private final TipoDocumentoRepository tipoDocumentoRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final ComisionMedicaRepository comisionMedicaRepository;
     private final EmpleadoRepository empleadoRepository;
     private final BolsinRepository bolsinRepository;
 
     public CargadorDatosDePrueba(EstadoRepository estadoRepository,
                                  TipoDocumentoRepository tipoDocumentoRepository,
-                                 UsuarioRepository usuarioRepository,
+                                 ComisionMedicaRepository comisionMedicaRepository,
                                  EmpleadoRepository empleadoRepository,
                                  BolsinRepository bolsinRepository) {
         this.estadoRepository = estadoRepository;
         this.tipoDocumentoRepository = tipoDocumentoRepository;
-        this.usuarioRepository = usuarioRepository;
+        this.comisionMedicaRepository = comisionMedicaRepository;
         this.empleadoRepository = empleadoRepository;
         this.bolsinRepository = bolsinRepository;
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        if (!estadoRepository.obtenerTodos().isEmpty()) {
+        if (!estadoRepository.findAll().isEmpty()) {
             log.info("Datos de prueba: la base ya tiene datos, no se carga nada.");
             return;
         }
@@ -82,17 +82,17 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         tipo("OTRO", "Otro");
 
         // 3. Comisiones medicas: se usa la instancia que devuelve save() (merge, clave asignada).
-        ComisionMedica cordoba = usuarioRepository.crearComisionMedica(
-                1, "Cordoba", "Colon 100", "cm@correo.com", "351-123456");
-        ComisionMedica buenosAires = usuarioRepository.crearComisionMedica(
-                2, "Buenos Aires", "Av. 9 de Julio 100", "cmba@correo.com", "11-654321");
+        ComisionMedica cordoba = comisionMedicaRepository.save(new ComisionMedica(
+                1, "Cordoba", "Colon 100", "cm@correo.com", "351-123456"));
+        ComisionMedica buenosAires = comisionMedicaRepository.save(new ComisionMedica(
+                2, "Buenos Aires", "Av. 9 de Julio 100", "cmba@correo.com", "11-654321"));
 
         // 4. Empleados con su Usuario (cascada PERSIST Empleado -> Usuario).
-        empleadoRepository.guardar(new Empleado("Jeronimo", "Abdala", "mail@mail.com",
+        empleadoRepository.save(new Empleado("Jeronimo", "Abdala", "mail@mail.com",
                 cordoba, new Usuario("jero", "1234")));
         Empleado maria = new Empleado("María", "López", "mlopez@mail.com",
                 buenosAires, new Usuario("mlopez", "1234"));
-        empleadoRepository.guardar(maria);
+        empleadoRepository.save(maria);
 
         // 5. Bolsines BA -> Cordoba. Envio 2 dias antes de la carga, a cargo de Maria Lopez (empleada de la CM origen),
         //    para que el historial de cada bolsin y documentacion empiece con un cambio de estado.
@@ -115,14 +115,14 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         r501.agregarDetalle(new DetalleRemito(documentacion(4, "Estudios-complementarios",
                 "Radiografías y análisis", expediente, docEnBolsinEnviado, envio, maria)));
         b1001.agregarRemito(r501);
-        bolsinRepository.guardar(b1001);
+        bolsinRepository.save(b1001);
 
         Bolsin b1002 = bolsin(1002, "PREC-002", 1.2, buenosAires, cordoba, bolEnviado, envio, maria);
         Remito r502 = remito(502, buenosAires, cordoba, remEnviado, envio);
         r502.agregarDetalle(new DetalleRemito(documentacion(5, "Turno-derivación",
                 "Documentación para derivación", expediente, docEnBolsinEnviado, envio, maria)));
         b1002.agregarRemito(r502);
-        bolsinRepository.guardar(b1002);
+        bolsinRepository.save(b1002);
 
         log.info("Datos de prueba cargados: 13 estados, 4 tipos, 2 CM, 2 empleados, "
                 + "bolsines 1001 y 1002 (3 remitos, 5 documentaciones).");
@@ -131,13 +131,13 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
     /** save() con id null hace persist: la misma instancia queda con su id y se puede referenciar. */
     private Estado estado(String ambito, String nombre, String descripcion) {
         Estado estado = new Estado(ambito, nombre, descripcion);
-        estadoRepository.guardar(estado);
+        estadoRepository.save(estado);
         return estado;
     }
 
     private TipoDocumento tipo(String nombre, String descripcion) {
         TipoDocumento tipo = new TipoDocumento(nombre, descripcion);
-        tipoDocumentoRepository.guardar(tipo);
+        tipoDocumentoRepository.save(tipo);
         return tipo;
     }
 

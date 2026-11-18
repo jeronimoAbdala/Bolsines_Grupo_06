@@ -1,21 +1,24 @@
 package main.Gestores;
 
 import main.Domain.Entities.*;
-import main.Domain.Repositories.BolsinRepository;
-import main.Domain.Repositories.EmpleadoRepository;
-import main.Domain.Repositories.EstadoRepository;
-import main.Domain.Repositories.TipoDocumentoRepository;
-import main.Domain.Repositories.UsuarioRepository;
+import main.Repositories.BolsinRepository;
+import main.Repositories.ComisionMedicaRepository;
+import main.Repositories.EmpleadoRepository;
+import main.Repositories.EstadoRepository;
+import main.Repositories.TipoDocumentoRepository;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Una sola instancia (Spring la crea y le inyecta los repositorios por constructor). */
+@Service
 public class GestorRecepcionBolsin {
 
     private final BolsinRepository bolsinRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final ComisionMedicaRepository comisionMedicaRepository;
     private final EmpleadoRepository empleadoRepository;
     private final EstadoRepository estadoRepository;
     private final TipoDocumentoRepository tipoDocumentoRepository;
@@ -30,18 +33,18 @@ public class GestorRecepcionBolsin {
     private int opcionSeleccionada;
     private Bolsin bolsinSeleccionado;
 
-    /** Estados persistidos que obtiene el paso 11 recorriendo EstadoRepository.obtenerTodos(). */
+    /** Estados persistidos que obtiene el paso 11 recorriendo estadoRepository.findAll(). */
     private Estado estadoRecibidoEnCMDestino;
     private Estado estadoRecibidoYAceptado;
     private Estado estadoRecibidaYAceptada;
 
     public GestorRecepcionBolsin(BolsinRepository bolsinRepository,
-                                 UsuarioRepository usuarioRepository,
+                                 ComisionMedicaRepository comisionMedicaRepository,
                                  EmpleadoRepository empleadoRepository,
                                  EstadoRepository estadoRepository,
                                  TipoDocumentoRepository tipoDocumentoRepository) {
         this.bolsinRepository = bolsinRepository;
-        this.usuarioRepository = usuarioRepository;
+        this.comisionMedicaRepository = comisionMedicaRepository;
         this.empleadoRepository = empleadoRepository;
         this.estadoRepository = estadoRepository;
         this.tipoDocumentoRepository = tipoDocumentoRepository;
@@ -64,7 +67,7 @@ public class GestorRecepcionBolsin {
         this.empleadoLogueado = null;
         if (sesionActual == null) return null;
         Usuario usuario = sesionActual.getUsuario();
-        for (Empleado empleado : empleadoRepository.obtenerTodos()) {
+        for (Empleado empleado : empleadoRepository.findAll()) {
             if (empleado.esTuUsuario(usuario)) {
                 this.empleadoLogueado = empleado;
                 break;
@@ -85,7 +88,7 @@ public class GestorRecepcionBolsin {
     public List<Bolsin> buscarBolsinesEnviados() {
         String cm = getCM();
         this.bolsinesSeleccionados = new ArrayList<>();
-        for (Bolsin bolsin : bolsinRepository.obtenerTodos()) {
+        for (Bolsin bolsin : bolsinRepository.findAll()) {
             if (bolsin.sosEnviado() && bolsin.esTuCM(cm)) {
                 bolsinesSeleccionados.add(bolsin);
             }
@@ -98,7 +101,7 @@ public class GestorRecepcionBolsin {
      * (paso 6). El numero llega de la pantalla (en el diagrama la seleccion no lleva parametro).
      */
     public void tomarSeleccionBolsin(int numeroBolsin) {
-        this.bolsinSeleccionado = bolsinRepository.buscarPorNumero(numeroBolsin);
+        this.bolsinSeleccionado = bolsinRepository.findById(numeroBolsin).orElse(null);
         obtenerInformacionRemito();
     }
 
@@ -141,7 +144,7 @@ public class GestorRecepcionBolsin {
     /** Recorre todos los estados preguntando *esAmbitoBolsin() y esEstadoRecibidoEnCMDestino(). */
     public Estado obtenerEstadoRecibidoEnCMDestino() {
         this.estadoRecibidoEnCMDestino = null;
-        for (Estado estado : estadoRepository.obtenerTodos()) {
+        for (Estado estado : estadoRepository.findAll()) {
             if (estado.esAmbitoBolsin() && estado.esEstadoRecibidoEnCMDestino()) {
                 this.estadoRecibidoEnCMDestino = estado;
                 break;
@@ -153,7 +156,7 @@ public class GestorRecepcionBolsin {
     /** Recorre todos los estados preguntando *esAmbitoRemito() y esEstadoRecibidoYAceptado(). */
     public Estado obtenerEstadoRecibidoYAceptado() {
         this.estadoRecibidoYAceptado = null;
-        for (Estado estado : estadoRepository.obtenerTodos()) {
+        for (Estado estado : estadoRepository.findAll()) {
             if (estado.esAmbitoRemito() && estado.esEstadoRecibidoYAceptado()) {
                 this.estadoRecibidoYAceptado = estado;
                 break;
@@ -165,7 +168,7 @@ public class GestorRecepcionBolsin {
     /** Recorre todos los estados preguntando *esAmbitoDocumentacion() y esEstadoRecibidaYAceptada(). */
     public Estado obtenerEstadoRecibidaYAceptada() {
         this.estadoRecibidaYAceptada = null;
-        for (Estado estado : estadoRepository.obtenerTodos()) {
+        for (Estado estado : estadoRepository.findAll()) {
             if (estado.esAmbitoDocumentacion() && estado.esEstadoRecibidaYAceptada()) {
                 this.estadoRecibidaYAceptada = estado;
                 break;
@@ -181,13 +184,13 @@ public class GestorRecepcionBolsin {
 
     /**
      * El Bolsin recibe (y en cascada sus remitos y documentacion) con los estados, el empleado
-     * logueado y la fecha/hora del Gestor; despues un solo guardar() persiste todo (cascadas).
+     * logueado y la fecha/hora del Gestor; despues un solo save() persiste todo (cascadas).
      */
     public void registrarRecepcionBolsin() {
         if (bolsinSeleccionado == null) return;
         bolsinSeleccionado.recibir(estadoRecibidoEnCMDestino, estadoRecibidoYAceptado,
                 estadoRecibidaYAceptada, buscarUsuarioLogueado(), fechaHoraActual);
-        bolsinRepository.guardar(bolsinSeleccionado);
+        bolsinRepository.save(bolsinSeleccionado);
     }
 
     public void llamarCU29() {
@@ -203,7 +206,7 @@ public class GestorRecepcionBolsin {
     }
 
     public Bolsin buscarBolsinPorNumero(int numero) {
-        return bolsinRepository.buscarPorNumero(numero);
+        return bolsinRepository.findById(numero).orElse(null);
     }
 
     public String getInformacionRemito() {
@@ -211,7 +214,7 @@ public class GestorRecepcionBolsin {
     }
 
     public List<ComisionMedica> obtenerComisionesMedicas() {
-        return bolsinRepository.obtenerComisionesMedicas();
+        return comisionMedicaRepository.findAll();
     }
 
     /**
@@ -225,7 +228,7 @@ public class GestorRecepcionBolsin {
         bolsin.setNroPrecinto(precinto);
         bolsin.setPeso(peso);
         bolsin.crearNuevoCE(estadoEnviado, fechaHora, buscarUsuarioLogueado());
-        bolsinRepository.guardar(bolsin);
+        bolsinRepository.save(bolsin);
     }
 
     public int obtenerSiguienteNumeroBolsin() {
@@ -257,13 +260,18 @@ public class GestorRecepcionBolsin {
         doc.crearNuevoCE(estadoDoc, fechaHora, buscarUsuarioLogueado());
 
         remito.agregarDetalle(new DetalleRemito(doc));
-        bolsinRepository.agregarRemitoABolsin(bolsinNumero, remito);
+        // El remito nuevo se inserta por la cascada ALL de Bolsin.remitos (y sus detalles y documentacion).
+        Bolsin bolsin = bolsinRepository.findById(bolsinNumero).orElse(null);
+        if (bolsin != null) {
+            bolsin.agregarRemito(remito);
+            bolsinRepository.save(bolsin);
+        }
     }
 
     // --- Pantallas auxiliares: estados y tipo persistidos (mismo estilo de recorrido que el paso 11).
 
     private Estado obtenerEstadoBolsinEnviado() {
-        for (Estado estado : estadoRepository.obtenerTodos()) {
+        for (Estado estado : estadoRepository.findAll()) {
             if (estado.esAmbitoBolsin() && estado.esEnviado()) {
                 return estado;
             }
@@ -272,7 +280,7 @@ public class GestorRecepcionBolsin {
     }
 
     private Estado obtenerEstadoRemitoEnviado() {
-        for (Estado estado : estadoRepository.obtenerTodos()) {
+        for (Estado estado : estadoRepository.findAll()) {
             if (estado.esAmbitoRemito() && estado.esEnviado()) {
                 return estado;
             }
@@ -282,7 +290,7 @@ public class GestorRecepcionBolsin {
 
     /** esEnviado() en el ambito DOC es EnBolsinEnviado (DME). */
     private Estado obtenerEstadoDocumentacionEnBolsinEnviado() {
-        for (Estado estado : estadoRepository.obtenerTodos()) {
+        for (Estado estado : estadoRepository.findAll()) {
             if (estado.esAmbitoDocumentacion() && estado.esEnviado()) {
                 return estado;
             }
@@ -291,7 +299,7 @@ public class GestorRecepcionBolsin {
     }
 
     private TipoDocumento buscarTipoDocumento(String nombre) {
-        for (TipoDocumento tipo : tipoDocumentoRepository.obtenerTodos()) {
+        for (TipoDocumento tipo : tipoDocumentoRepository.findAll()) {
             if (tipo.getNombre().equals(nombre)) {
                 return tipo;
             }
@@ -303,19 +311,19 @@ public class GestorRecepcionBolsin {
                              String nombreEmp, String apellidoEmp, String mailEmp, ComisionMedica cm) {
         Usuario usuario = new Usuario(nombreUsuario, password);
         Empleado emp = new Empleado(nombreEmp, apellidoEmp, mailEmp, cm, usuario);
-        empleadoRepository.guardar(emp);
+        empleadoRepository.save(emp);
     }
 
     public ComisionMedica crearComisionMedica(int codigo, String nombre, String direccion, String email, String telefono) {
-        return usuarioRepository.crearComisionMedica(codigo, nombre, direccion, email, telefono);
+        return comisionMedicaRepository.save(new ComisionMedica(codigo, nombre, direccion, email, telefono));
     }
 
     public List<Bolsin> obtenerTodosBolsines() {
-        return bolsinRepository.obtenerTodos();
+        return bolsinRepository.findAll();
     }
 
     /** Cada Empleado conoce a su Usuario; la pantalla de usuarios lista empleados con su usuario. */
     public List<Empleado> obtenerTodosEmpleados() {
-        return empleadoRepository.obtenerTodos();
+        return empleadoRepository.findAll();
     }
 }

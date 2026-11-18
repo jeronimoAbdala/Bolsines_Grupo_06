@@ -2,7 +2,7 @@ package main.Config;
 
 import main.Domain.Entities.Sesion;
 import main.Domain.Entities.Usuario;
-import main.Domain.Repositories.UsuarioRepository;
+import main.Repositories.UsuarioRepository;
 import main.Gestores.GestorRecepcionBolsin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +35,7 @@ public class InicioDeSesion implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        Usuario usuario = usuarioRepository.buscarPorNombre(nombreUsuario);
+        Usuario usuario = usuarioRepository.findById(nombreUsuario).orElse(null);
         if (usuario == null) {
             log.warn("Sesion: no existe el usuario '{}'; no hay usuario logueado.", nombreUsuario);
             return;
