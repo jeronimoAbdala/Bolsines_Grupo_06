@@ -1,5 +1,8 @@
 package main;
 
+import jakarta.persistence.EntityManagerFactory;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -28,11 +31,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * CU 28 de punta a punta, sin tocar la base de archivo: PantallaRegistrarRecepcionBolsin (REST) -> Gestor
- * -> repositorios (JpaRepository) -> Hibernate -> H2 en memoria.
+ * -> repositorios (EntityManager) -> Hibernate -> H2 en memoria.
  * Los metodos corren EN ORDEN y comparten la misma base y el mismo Gestor (guarda el estado del CU entre
  * pedidos): primero se verifica el estado inicial, despues se recibe el 1001 y se verifica el historial;
  * al final, que el 1001 ya no este pendiente, el Iterator del 1005 (4 documentaciones) y el historial del 1007,
- * que los datos de prueba cargan ya recibido.
+ * que los datos de prueba cargan ya recibido. El 12 verifica que despues del inicio el Gestor no vuelve a consultar la base.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -47,6 +50,9 @@ class RecepcionBolsinFlujoTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
 
     @Test
     @Order(1)
@@ -136,9 +142,11 @@ class RecepcionBolsinFlujoTest {
                 .andExpect(content().string("1001"));
         mvc.perform(post(BASE + "/confirmacion"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.estado", is("RecibidoEnCMDestino")))
-                .andExpect(jsonPath("$.remitos[*].estado", everyItem(is("RecibidoYAceptado"))))
-                .andExpect(jsonPath("$.remitos[*].documentos[*].estado", everyItem(is("RecibidaYAceptada"))));
+                .andExpect(jsonPath("$.bolsin.estado", is("RecibidoEnCMDestino")))
+                .andExpect(jsonPath("$.bolsin.remitos[*].estado", everyItem(is("RecibidoYAceptado"))))
+                .andExpect(jsonPath("$.bolsin.remitos[*].documentos[*].estado", everyItem(is("RecibidaYAceptada"))))
+                // Paso 12: llamarCU29() incluye el CU 29 y la respuesta informa que la notificacion se envio.
+                .andExpect(jsonPath("$.notificacionEnviada", is(true)));
     }
 
     @Test
@@ -264,6 +272,24 @@ class RecepcionBolsinFlujoTest {
         assertThat(cambiosDoc.get(0).get("fin")).isNotNull();
         assertThat(cambiosDoc.get(1).get("estado")).isEqualTo("RecibidaYAceptada");
         assertThat(cambiosDoc.get(1).get("responsable")).isEqualTo("Jeronimo Abdala");
+    }
+
+    @Test
+    @Order(12)
+    void sinConsultasRepetidas_seleccionYConfirmacionUsanElBolsinDelPaso3() throws Exception {
+        Statistics estadisticas = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        mvc.perform(post(BASE + "/iniciar")).andExpect(status().isOk());
+
+        // Seleccion (con el Iterator) y opcion: trabajan con el bolsin que trajo el paso 3, sin ninguna sentencia SQL.
+        estadisticas.clear();
+        mvc.perform(post(BASE + "/seleccion/1003")).andExpect(status().isOk());
+        mvc.perform(opcion("{\"opcion\":1}")).andExpect(status().isOk());
+        assertThat(estadisticas.getPrepareStatementCount()).isZero();
+
+        // Confirmacion: ninguna consulta del Gestor (los estados se cargaron al iniciar); solo quedan los SELECT internos del merge de guardar().
+        estadisticas.clear();
+        mvc.perform(post(BASE + "/confirmacion")).andExpect(status().isOk());
+        assertThat(estadisticas.getQueryExecutionCount()).isZero();
     }
 
     private static org.springframework.test.web.servlet.RequestBuilder opcion(String cuerpo) {

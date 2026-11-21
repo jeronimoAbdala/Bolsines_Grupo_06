@@ -1,5 +1,5 @@
 import { api } from '@/shared/lib/axios';
-import type { Bolsin, DetalleRecepcion, VentanaRecepcion } from '../types/recepcion.types';
+import type { DetalleRecepcion, RecepcionRegistrada, VentanaRecepcion } from '../types/recepcion.types';
 
 /** Un metodo por cada endpoint de PantallaRegistrarRecepcionBolsin (backend). */
 export const recepcionService = {
@@ -19,8 +19,8 @@ export const recepcionService = {
     return data;
   },
 
-  confirmar: async (): Promise<Bolsin> => {
-    const { data } = await api.post<Bolsin>('/recepcion/confirmacion');
+  confirmar: async (): Promise<RecepcionRegistrada> => {
+    const { data } = await api.post<RecepcionRegistrada>('/recepcion/confirmacion');
     return data;
   },
 };

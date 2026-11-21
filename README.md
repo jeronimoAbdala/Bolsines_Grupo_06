@@ -4,7 +4,7 @@ CU 28 **Registrar recepción de bolsín**, separado en dos proyectos. Como el ej
 
 | Carpeta | Qué es | Tecnología |
 |---|---|---|
-| [`backend/`](backend) | API REST con el gestor, los repositorios y las entidades del dominio. | Java 21, Spring Boot 3, Spring Data JPA + Hibernate, H2 |
+| [`backend/`](backend) | API REST con el gestor, los repositorios y las entidades del dominio. | Java 21, Spring Boot 3, JPA + Hibernate, H2 |
 | [`frontend/`](frontend) | Interfaz web que consume la API. | React 18, TypeScript, Vite, React Query, React Router |
 
 ![Registrar recepción](docs/capturas/recepcion.png)
@@ -67,7 +67,7 @@ Entrá al menú **Registrar recepcion**. Arriba se ve el usuario logueado (Jeron
 1. Hacé clic en el bolsín **1001**: a la derecha se ven su origen, destino, precinto, peso y sus remitos con la documentación (el remito 500 muestra sus 3 documentaciones, cada una con su asunto y tipo).
 2. Elegí la opción **1. El contenido del bolsín es igual al registrado** y tocá **Continuar**.
 3. En la ventana de confirmación tocá **Confirmar recepcion**.
-4. Aparece "Recepcion registrada": el bolsín queda **RecibidoEnCMDestino** (verde), sus remitos **RecibidoYAceptado** y su documentación **RecibidaYAceptada**. Tocá **Listo**.
+4. Aparece "Recepcion registrada": el bolsín queda **RecibidoEnCMDestino** (verde), sus remitos **RecibidoYAceptado** y su documentación **RecibidaYAceptada**, y debajo "Notificación enviada a la CM origen (Buenos Aires)" (CU 29; en la consola del backend queda el log de la notificación). Tocá **Listo**.
 5. En la tabla quedan el **1002 al 1005**: el 1001 ya no está pendiente de recepción.
 
 Para volver a tener los dos bolsines pendientes: borrá `backend/db/` y reiniciá el backend (ver [Cómo reiniciar los datos de prueba](#cómo-reiniciar-los-datos-de-prueba)).
@@ -109,7 +109,7 @@ cd backend
 mvn test
 ```
 
-Corre `RecepcionBolsinFlujoTest`, que recorre el CU 28 completo por los endpoints de la Pantalla (iniciar, selección con el texto del Iterator, opción —las no implementadas responden 501— y confirmación con la opción 1) y el historial de estados. Usa una base H2 **en memoria**, así que no toca los datos de `backend/db/`.
+Corre `RecepcionBolsinFlujoTest`, que recorre el CU 28 completo por los endpoints de la Pantalla (iniciar, selección con el texto del Iterator, opción —las no implementadas responden 501— y confirmación con la opción 1, con la notificación del CU 29) y el historial de estados. El test 12 usa las estadísticas de Hibernate para verificar que, después de iniciar el CU, la selección y la opción no ejecutan ninguna sentencia SQL y la confirmación ninguna consulta del Gestor. Usa una base H2 **en memoria**, así que no toca los datos de `backend/db/`.
 
 También corre los tests unitarios del patrón Iterator del paso 6, sin base ni Spring: `IteradorRemitoTest` e `IteradorDetalleTest` (orden, fin del recorrido, `primero()` reinicia, colección vacía) y `RecorridoIteratorTest` (recorrido anidado Bolsín → Remito → Detalle y el texto que arma).
 
@@ -120,7 +120,7 @@ También corre los tests unitarios del patrón Iterator del paso 6, sin base ni 
 | POST | `/api/recepcion/iniciar` | Pasos 1 a 4 (`opcRegistrarRecepcionBolsin()`): usuario logueado con su comisión médica y bolsines en estado Enviado hacia esa CM |
 | POST | `/api/recepcion/seleccion/{numero}` | Pasos 5 a 7 (`tomarSeleccionBolsin()`): selección del bolsín, información de remitos (Iterator) y las 4 opciones de recepción |
 | POST | `/api/recepcion/opcion` | Paso 8 (`tomarOpcionDeRecepcion()`). Cuerpo: `{ "opcion": 1 }`. Responde el número del bolsín a confirmar |
-| POST | `/api/recepcion/confirmacion` | Pasos 10 a 12 (`tomarConfirmacion()`): registra la recepción y devuelve el bolsín recibido |
+| POST | `/api/recepcion/confirmacion` | Pasos 10 a 12 (`tomarConfirmacion()`): registra la recepción, incluye el CU 29 y devuelve `{ bolsin, notificacionEnviada }` |
 
 Los errores vuelven como `{ "mensaje": "..." }` con 400 (opción fuera de 1 a 4 o cuerpo inválido), 404 (no hay usuario logueado), 409 (el bolsín no está pendiente o no hay un bolsín seleccionado) o 501 (opción de recepción 2, 3 o 4: "Opción no implementada").
 

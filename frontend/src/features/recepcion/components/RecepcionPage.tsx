@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, PageHeader } from '@/shared/components';
 import { errorMessage } from '@/shared/utils/errorMessage';
-import type { Bolsin } from '../types/recepcion.types';
+import type { RecepcionRegistrada } from '../types/recepcion.types';
 import { useConfirmarRecepcion, useElegirOpcion, useSeleccionarBolsin } from '../hooks/useRecepcion';
 import { BolsinesPendientesTable } from './BolsinesPendientesTable';
 import { ConfirmarRecepcionModal } from './ConfirmarRecepcionModal';
@@ -14,7 +14,7 @@ export const RecepcionPage = () => {
   const [seleccionado, setSeleccionado] = useState<number | null>(null);
   const [opcion, setOpcion] = useState<number | null>(null);
   const [confirmando, setConfirmando] = useState<number | null>(null);
-  const [recibido, setRecibido] = useState<Bolsin | null>(null);
+  const [recibido, setRecibido] = useState<RecepcionRegistrada | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const seleccion = useSeleccionarBolsin();
   const eleccion = useElegirOpcion();
@@ -43,12 +43,12 @@ export const RecepcionPage = () => {
   // Paso 10: el usuario confirma la recepcion.
   const confirmar = () => {
     confirmacion.mutate(undefined, {
-      onSuccess: (bolsin) => {
+      onSuccess: (recepcion) => {
         setConfirmando(null);
         setSeleccionado(null);
         seleccion.reset();
         setAviso(null);
-        setRecibido(bolsin);
+        setRecibido(recepcion);
       },
     });
   };
@@ -86,7 +86,7 @@ export const RecepcionPage = () => {
         onConfirmar={confirmar}
         onCancelar={cancelar}
       />
-      <RecepcionExitosaModal bolsin={recibido} onCerrar={() => setRecibido(null)} />
+      <RecepcionExitosaModal recepcion={recibido} onCerrar={() => setRecibido(null)} />
     </>
   );
 };

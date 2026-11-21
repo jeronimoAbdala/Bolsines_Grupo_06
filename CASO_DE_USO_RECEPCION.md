@@ -6,7 +6,7 @@ La comisión médica (CM) destino registra que recibió un bolsín enviado desde
 - **Precondición**: hay una `Sesion` actual (la crea `InicioDeSesion` al arrancar) y existen bolsines en estado Enviado hacia la CM del empleado.
 - **Postcondición** (opción 1): el bolsín queda **RecibidoEnCMDestino**, sus remitos **RecibidoYAceptado** y su documentación **RecibidaYAceptada**, con el historial de cambios de estado a cargo del empleado logueado.
 
-Cadena de clases: `RecepcionPage` (frontend) → `PantallaRegistrarRecepcionBolsin` (backend, `@RestController`) → `GestorRecepcionBolsin` → repositorios (`JpaRepository`) / entidades. Cada mensaje del actor es un endpoint de la Pantalla; cada mensaje Gestor → Pantalla es un método privado de la Pantalla que arma la respuesta con los DTO que le da el Gestor (la Pantalla no toca entidades). El Gestor guarda el estado del CU entre pedidos.
+Cadena de clases: `RecepcionPage` (frontend) → `PantallaRegistrarRecepcionBolsin` (backend, `@RestController`) → `GestorRecepcionBolsin` → repositorios (clases con `EntityManager`) / entidades. Cada mensaje del actor es un endpoint de la Pantalla; cada mensaje Gestor → Pantalla es un método privado de la Pantalla que arma la respuesta con los DTO que le da el Gestor (la Pantalla no toca entidades). El Gestor guarda el estado del CU entre pedidos: lee la base una sola vez al iniciar (paso 1) y escribe una sola vez al confirmar (paso 11).
 
 ## Flujo principal (pasos de la ERS)
 
@@ -14,24 +14,24 @@ EB = empleado de bolsines (actor). ⚠️ = no implementado.
 
 | Paso | ERS | Pantalla web (frontend) | Endpoint | Pantalla Java y Gestor |
 |---|---|---|---|---|
-| 1 | EB: selecciona la opción para registrar la recepción de un bolsín | Menú **Registrar recepcion** → `RecepcionPage` (el CU empieza acá: la página de Inicio no llama a la API) | `POST /api/recepcion/iniciar` | `PantallaRegistrarRecepcionBolsin.opcRegistrarRecepcionBolsin()` → `habilitarVentana()` → `GestorRecepcionBolsin.opRegistrarRecepcionBolsin()` |
+| 1 | EB: selecciona la opción para registrar la recepción de un bolsín | Menú **Registrar recepcion** → `RecepcionPage` (el CU empieza acá: la página de Inicio no llama a la API) | `POST /api/recepcion/iniciar` | `PantallaRegistrarRecepcionBolsin.opcRegistrarRecepcionBolsin()` → `habilitarVentana()` → `GestorRecepcionBolsin.opRegistrarRecepcionBolsin()`, que primero llama a `cargarDatos()` (privado): carga en atributos los empleados, los bolsines y los estados (`obtenerTodos()`: las únicas lecturas de la base del CU) |
 | 2 | Sistema: busca y muestra la CM del usuario logueado | `SesionCard` (usuario, CM y fecha) | (respuesta de `iniciar`: `usuario`) | Gestor: `buscarUsuarioLogueado()`: `Sesion.getUsuario()` y recorrido de empleados con `Empleado.esTuUsuario(usuario)`; la CM: `Empleado.getCM()` → `ComisionMedica.getNombre()`. Pantalla: `mostrarCM()` (toma el `UsuarioDto` del Gestor; 404 si no hay usuario logueado) |
-| 3 | Sistema: busca los bolsines en estado enviado para la CM del usuario logueado, y encuentra al menos uno | `BolsinesPendientesTable` (si no hay ninguno muestra un mensaje vacío) | (respuesta de `iniciar`) | Gestor: `buscarBolsinesEnviados(cm)`: recorre `bolsinRepository.findAll()` preguntando `Bolsin.sosEnviado()` y `Bolsin.esTuCM(cm)`; guarda la lista en `bolsinesSeleccionados`. `sosEnviado()` busca el cambio de estado actual (`*CambioEstadoBolsin.sosActual()`) y le pregunta `sosEnviado()`, que le pregunta a su `Estado.esEnviado()`. Con los datos de prueba quedan 1001 a 1005: el 1006 va a Buenos Aires (`esTuCM()` da falso) y el 1007 ya fue recibido (`sosEnviado()` da falso) |
+| 3 | Sistema: busca los bolsines en estado enviado para la CM del usuario logueado, y encuentra al menos uno | `BolsinesPendientesTable` (si no hay ninguno muestra un mensaje vacío) | (respuesta de `iniciar`) | Gestor: `buscarBolsinesEnviados(cm)`: recorre los bolsines cargados en el paso 1 preguntando `Bolsin.sosEnviado()` y `Bolsin.esTuCM(cm)`; guarda la lista en `bolsinesSeleccionados`. `sosEnviado()` busca el cambio de estado actual (`*CambioEstadoBolsin.sosActual()`) y le pregunta `sosEnviado()`, que le pregunta a su `Estado.esEnviado()`. Con los datos de prueba quedan 1001 a 1005: el 1006 va a Buenos Aires (`esTuCM()` da falso) y el 1007 ya fue recibido (`sosEnviado()` da falso) |
 | 4 | Sistema: muestra de cada bolsín su CM origen y número de precinto, habilitando la selección de uno por listado o filtrando por alguno de estos datos | `BolsinesPendientesTable`: primera línea con el texto de `solicitudSeleccion` ("Seleccione un bolsín para registrar su recepción"); columnas Bolsín, Origen, Precinto, Remitos, Estado; filas seleccionables. Arriba de la tabla, `FiltroBolsines`: **Filtrar por** (Número de precinto / CM origen), el dato y los botones **Filtrar** y **Limpiar filtro**. Se filtra en la pantalla con `filtrarBolsines()` (`recepcion/utils/filtroBolsines.ts`): precinto con coincidencia exacta, CM origen con coincidencia parcial (los dos sin distinguir mayúsculas ni tildes); con resultados muestra "Filtrado por …: N de M bolsines" | (respuesta de `iniciar`: `bolsines` y `solicitudSeleccion`; el filtro no llama a la API) | Gestor, en el mismo loop: `getCMOrigen()` y `getNroPrecinto()` de cada bolsín, que entrega sin entidades (`BolsinEnviadoDto`). Pantalla: `mostrarBolsinesParaSeleccion()` arma cada fila (`BolsinParaSeleccionDto`) con `mostrarCMOrigen()` (nombre de la CM origen) y `mostrarNroPrecinto()` ('N/A' si no hay precinto); `solicitarSeleccionBolsin()` devuelve el texto que pide elegir un bolsín. El filtro no tiene método en el Gestor ni endpoint (no está en los diagramas) |
-| 5 | EB: selecciona un bolsín del listado | Clic (o Enter) en una fila → `RecepcionPage.seleccionarBolsin(n)` | `POST /api/recepcion/seleccion/{n}` | `PantallaRegistrarRecepcionBolsin.tomarSeleccionBolsin(n)` → `GestorRecepcionBolsin.tomarSeleccionBolsin(n)`: lo busca entre `bolsinesSeleccionados` (`esTuNumero(n)`; si no está, 409), lo vuelve a leer con `findById` y se llama a sí mismo `obtenerInformacionRemito()` (paso 6) |
+| 5 | EB: selecciona un bolsín del listado | Clic (o Enter) en una fila → `RecepcionPage.seleccionarBolsin(n)` | `POST /api/recepcion/seleccion/{n}` | `PantallaRegistrarRecepcionBolsin.tomarSeleccionBolsin(n)` → `GestorRecepcionBolsin.tomarSeleccionBolsin(n)`: lo busca entre `bolsinesSeleccionados` (`esTuNumero(n)`; si no está, 409), usa ese mismo objeto (sin volver a la base) y se llama a sí mismo `obtenerInformacionRemito()` (paso 6) |
 | 6 | Sistema: para cada remito asociado al bolsín muestra el número de remito, y para cada documentación contenida en el remito muestra el asunto y el tipo de documentación | `DetalleRemitoPanel` → `DatosRemito`: "Remito #N" y, debajo, "Asunto: … \| Tipo: …" por cada documentación. El encabezado (origen, destino, precinto, peso) sale de `BolsinDto` | (respuesta de `seleccion`: `informacionRemito`) | **Patrón Iterator** (ver detalle abajo): `GestorRecepcionBolsin.obtenerInformacionRemito()` le delega a `Bolsin.obtenerInformacionRemito()`, que recorre sus remitos con un `IteradorRemito` (`getNumero()` y `Remito.buscarDocumentacion()`); cada Remito recorre sus detalles con un `IteradorDetalle` y le pide a cada uno `DetalleRemito.getDocumentacion()` (`Documentacion.getAsunto()` y `mostrarTipoDocumentacion()` → `TipoDocumento.getNombre()`). El Gestor guarda el texto en `informacionRemito`. Pantalla: `mostrarDatosRemito()` |
 | 7 | Sistema: muestra las opciones de recepción del bolsín y solicita que se seleccione la correspondiente | `DetalleRemitoPanel`, debajo de los datos del paso 6: grupo de 4 radios y botón **Continuar** (deshabilitado hasta elegir) | (respuesta de `seleccion`: `opcionesRecepcion`) | Pantalla: `mostrarOpcionesRecepcion()` (los 4 textos de la ERS) |
 | 8 | EB: selecciona la primera opción: "El contenido del bolsín es igual al registrado" | Radio **1** + **Continuar** → `RecepcionPage.continuar()` | `POST /api/recepcion/opcion` con `{"opcion": 1}` | `PantallaRegistrarRecepcionBolsin.tomarOpcionDeRecepcion()` (400 si no es 1..4; 409 sin bolsín seleccionado) → `GestorRecepcionBolsin.tomarOpcionDeRecepcion(1)` |
 | 9 | Sistema: pide confirmación de la selección para el registro correspondiente | `ConfirmarRecepcionModal` con el número que devolvió el backend | (respuesta de `opcion`: el número del bolsín) | Pantalla: `solicitarConfirmacion()` |
 | 10 | EB: confirma la selección | **Confirmar recepcion** → `RecepcionPage.confirmar()` | `POST /api/recepcion/confirmacion` | `PantallaRegistrarRecepcionBolsin.tomarConfirmacion()` → `GestorRecepcionBolsin.tomarConfirmacion()` |
-| 11 | Sistema: actualiza el bolsín a Recibido en CM destino registrando el empleado responsable, los remitos a Recibido y Aceptado, y la documentación a Recibida y Aceptada registrando el empleado responsable | — | (dentro de `confirmacion`) | Gestor: vuelve a leer el bolsín (`findById`), `obtenerEstadoRecibidoEnCMDestino()`, `obtenerEstadoRecibidoYAceptado()`, `obtenerEstadoRecibidaYAceptada()`, `getFechaYHoraActual()`, `Bolsin.recibir(...)` y `bolsinRepository.save()`. Ver detalle abajo |
-| 12 | Sistema: se incluye el CU 29 Notificar recepción de bolsín. Informa la ejecución exitosa del caso de uso. Fin del caso de uso | `RecepcionExitosaModal` ("Recepcion registrada", con los estados nuevos) → **Listo**; la lista se vuelve a pedir (`iniciar`) | (respuesta de `confirmacion`: el bolsín recibido) | Gestor: ⚠️ `llamarCU29()` (vacío: el **CU 29 no se implementa**), arma el `BolsinDto` y `finCU()` (vacía la selección y las listas). Pantalla: `informarRecepcion()` (409 si no se registró nada) |
+| 11 | Sistema: actualiza el bolsín a Recibido en CM destino registrando el empleado responsable, los remitos a Recibido y Aceptado, y la documentación a Recibida y Aceptada registrando el empleado responsable | — | (dentro de `confirmacion`) | Gestor: `obtenerEstadoRecibidoEnCMDestino()`, `obtenerEstadoRecibidoYAceptado()`, `obtenerEstadoRecibidaYAceptada()` (recorren los estados cargados en el paso 1), `getFechaYHoraActual()`, `Bolsin.recibir(...)` y `bolsinRepository.guardar(bolsin)`, la única escritura del CU. Ver detalle abajo |
+| 12 | Sistema: se incluye el CU 29 Notificar recepción de bolsín. Informa la ejecución exitosa del caso de uso. Fin del caso de uso | `RecepcionExitosaModal` ("Recepcion registrada", con los estados nuevos y "Notificación enviada a la CM origen") → **Listo**; la lista se vuelve a pedir (`iniciar`) | (respuesta de `confirmacion`: `{ bolsin, notificacionEnviada }`) | Gestor: `llamarCU29()` (el `<<include>>`: llama a `GestorNotificarRecepcionBolsin.notificarRecepcion(bolsin)`, que notifica a la CM origen y devuelve que la notificación se envió), arma el `RecepcionRegistradaDto` y `finCU()` (vacía la selección y las listas). Pantalla: `informarRecepcion()` (409 si no se registró nada) |
 
 ### Paso 6 en detalle: patrón Iterator (orden del diagrama de secuencia)
 
 ```
 GestorRecepcionBolsin.tomarSeleccionBolsin(n)
-├─ *esTuNumero(n) en bolsinesSeleccionados, bolsinRepository.findById(n)   → bolsinSeleccionado
+├─ *esTuNumero(n) en bolsinesSeleccionados                → bolsinSeleccionado (el mismo objeto, sin volver a la base)
 └─ obtenerInformacionRemito()                              (void: guarda el resultado en informacionRemito)
    └─ Bolsin.obtenerInformacionRemito(): String
       ├─ crearIterador(remitos.toArray()) → new IteradorRemito(elementos)
@@ -75,11 +75,10 @@ GestorRecepcionBolsin.tomarSeleccionBolsin(n)
 ### Pasos 10 y 11 en detalle (orden del diagrama de secuencia)
 
 ```
-GestorRecepcionBolsin.tomarConfirmacion(): BolsinDto   (sigue solo si hay bolsín seleccionado y opcionDeRecepcion == 1)
-├─ bolsinRepository.findById(numero)    vuelve a leer el bolsín seleccionado en este pedido (persistencia)
-├─ obtenerEstadoRecibidoEnCMDestino()   recorre estadoRepository.findAll(): esAmbitoBolsin() && esEstadoRecibidoEnCMDestino()
-├─ obtenerEstadoRecibidoYAceptado()     recorre estadoRepository.findAll(): esAmbitoRemito() && esEstadoRecibidoYAceptado()
-├─ obtenerEstadoRecibidaYAceptada()     recorre estadoRepository.findAll(): esAmbitoDocumentacion() && esEstadoRecibidaYAceptada()
+GestorRecepcionBolsin.tomarConfirmacion(): RecepcionRegistradaDto   (sigue solo si hay bolsín seleccionado y opcionDeRecepcion == 1)
+├─ obtenerEstadoRecibidoEnCMDestino()   recorre los estados cargados al iniciar: esAmbitoBolsin() && esEstadoRecibidoEnCMDestino()
+├─ obtenerEstadoRecibidoYAceptado()     recorre los estados cargados al iniciar: esAmbitoRemito() && esEstadoRecibidoYAceptado()
+├─ obtenerEstadoRecibidaYAceptada()     recorre los estados cargados al iniciar: esAmbitoDocumentacion() && esEstadoRecibidaYAceptada()
 ├─ getFechaYHoraActual()
 ├─ Bolsin.recibir(estBolsin, estRemito, estDoc, empleadoLogueado, fechaHora)
 │  ├─ *Remito.aceptar(estRemito, estDoc, empleado, fechaHora)          PRIMERO los remitos
@@ -92,13 +91,13 @@ GestorRecepcionBolsin.tomarConfirmacion(): BolsinDto   (sigue solo si hay bolsí
 │  ├─ Bolsin.setEstado(estBolsin)                                       DESPUÉS el bolsín
 │  ├─ *CambioEstadoBolsin.sosActual() → setFechaHoraFin(fechaHora)
 │  └─ crearNuevoCE() → new CambioEstadoBolsin(estBolsin, fechaHora, empleado)
-├─ bolsinRepository.save(bolsin)        un solo guardado: las cascadas persisten todo en una transacción
-├─ llamarCU29()                         paso 12: vacío (el CU 29 no se implementa)
-├─ BolsinDto.de(bolsin)                 los datos que la Pantalla usa en informarRecepcion()
+├─ bolsinRepository.guardar(bolsin)     única escritura: merge y cascadas, todo en una transacción
+├─ llamarCU29()                         paso 12, <<include>>: GestorNotificarRecepcionBolsin.notificarRecepcion(bolsin) → notificacionEnviada
+├─ new RecepcionRegistradaDto(...)      BolsinDto del bolsín + notificacionEnviada: lo que la Pantalla usa en informarRecepcion()
 └─ finCU()                              bolsín seleccionado en null y listas vacías
 ```
 
-- Los estados no se crean: se buscan entre los **estados persistidos** (tabla `estado`) y se pasan por parámetro.
+- Los estados no se crean: se buscan entre los **estados persistidos** (tabla `estado`), cargados al iniciar el CU, y se pasan por parámetro.
 - La **misma fecha/hora** cierra el cambio de estado anterior y abre el nuevo.
 - El responsable de los cambios es el **empleado logueado**: el que encontró `buscarUsuarioLogueado()` en el paso 2 (atributo `empleadoLogueado` del Gestor).
 
@@ -139,7 +138,7 @@ Para A3, A4 y A5 la Pantalla Java responde **501** "Opción no implementada" sin
 ## No implementado (fuera de alcance)
 
 - Las opciones de recepción 2, 3 y 4 (flujos **A3**, **A4** y **A5**): solo muestran "Opción no implementada".
-- Paso 12: el **CU 29** Notificar recepción de bolsín (`GestorRecepcionBolsin.llamarCU29()` está vacío).
+- CU 29: no se mandan mails reales. `GestorNotificarRecepcionBolsin` deja la notificación a la CM origen en el log del backend ("CU 29: notificacion enviada a …").
 
 ## Cómo probarlo
 

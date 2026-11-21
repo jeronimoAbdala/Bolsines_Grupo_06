@@ -1,33 +1,36 @@
-# Bolsines — Arquitectura en capas + Spring Data JPA
+# Bolsines — Arquitectura en capas + JPA (Hibernate)
 
 > El proyecto está separado en `backend/` (API REST con Spring Boot) y `frontend/` (React + TypeScript). Tiene solo el CU 28, como el ejemplo de la cátedra: una Pantalla y un Gestor; los datos de prueba se cargan solos al arrancar. Ver [README.md](README.md) para levantarlo y [CASO_DE_USO_RECEPCION.md](CASO_DE_USO_RECEPCION.md) para el recorrido del CU 28.
 
 ## Capas
 
 ```
-Frontend (React) ──HTTP──▶ Pantalla (Presentation) → Gestor → Repository (JpaRepository) → Hibernate → H2
+Frontend (React) ──HTTP──▶ Pantalla (Presentation) → Gestor → Repository (EntityManager) → Hibernate → H2
                            (CU 28: entre la Pantalla y el Gestor viajan DTO; el Gestor trabaja con las entidades)
 ```
 
 | Capa | Paquete | Rol |
 |---|---|---|
 | **Presentation** | `Presentation/Api` | `PantallaRegistrarRecepcionBolsin`: la Pantalla del diagrama del CU 28 es un `@RestController`. Cada mensaje del actor es un endpoint y cada mensaje Gestor → Pantalla es un método privado que arma la respuesta con los DTO que le da el Gestor (no toca entidades). Además, el manejo de errores (`ManejadorErrores`, `ApiException`). Sin lógica de negocio. |
-| **Gestor** | `Gestores` | Lógica del caso de uso (`GestorRecepcionBolsin`, `@Service`). Una sola instancia: guarda el estado del CU entre pedidos. Usa los repositorios directo. |
-| **Dto** | `Dto` | Records que entrega el Gestor y devuelve la API (`VentanaRecepcionDto`, `BolsinParaSeleccionDto`, `DetalleRecepcionDto`, `BolsinDto`, `UsuarioDto`, …) y el cuerpo del POST de la opción de recepción (`Requests.OpcionDeRecepcion`). |
-| **Repository** | `Repositories` | Una interfaz por entidad que extiende `JpaRepository<Entidad, Id>` (`BolsinRepository`, `ComisionMedicaRepository`, `EmpleadoRepository`, `EstadoRepository`, `TipoDocumentoRepository`, `UsuarioRepository`). Spring Data genera la implementación (`findAll`, `findById`, `save`). El Gestor usa los de Bolsin, Empleado y Estado; `CargadorDatosDePrueba` usa todos y `InicioDeSesion` el de Usuario. |
+| **Gestor** | `Gestores` | Lógica de los casos de uso, sin persistencia: `GestorRecepcionBolsin` (CU 28) y `GestorNotificarRecepcionBolsin` (CU 29, lo incluye el paso 12), los dos `@Service`. El del CU 28 es una sola instancia que guarda el estado del CU entre pedidos: lee la base una sola vez al iniciar el CU y escribe una sola vez al confirmar, siempre con métodos de los repositorios (no conoce JPA). |
+| **Dto** | `Dto` | Records que entrega el Gestor y devuelve la API (`VentanaRecepcionDto`, `BolsinParaSeleccionDto`, `DetalleRecepcionDto`, `BolsinDto`, `RecepcionRegistradaDto`, `UsuarioDto`, …) y el cuerpo del POST de la opción de recepción (`Requests.OpcionDeRecepcion`). |
+| **Repository** | `Repositories` | Una clase `@Repository` por entidad (`BolsinRepository`, `ComisionMedicaRepository`, `EmpleadoRepository`, `EstadoRepository`, `TipoDocumentoRepository`, `UsuarioRepository`) con métodos de nombre de negocio: `obtenerTodos()`, `guardar(...)`, `buscarPorNombre(...)`. Por dentro usan el `EntityManager` de JPA (`@PersistenceContext`), consultas JPQL y `@Transactional`; las cascadas y el `merge` quedan acá. El Gestor usa los de Bolsin, Empleado y Estado; `CargadorDatosDePrueba` usa todos y `InicioDeSesion` el de Usuario. |
 | **Entities** | `Domain/Entities` | Modelo de dominio, mapeado a tablas con anotaciones JPA (`@Entity`). |
 | **Iterator** | `Domain/Iterator` | Patrón Iterator del paso 6 del CU 28: interfaces `IIterador` e `IAgregado` e iteradores concretos `IteradorRemito` e `IteradorDetalle` (clases comunes, no se persisten). |
 | **Config** | `Config` | `AppConfig` (CORS), `CargadorDatosDePrueba` e `InicioDeSesion` (tareas de arranque). |
 
-**Regla**: la Pantalla le habla directo al Gestor y el Gestor a los repositorios; Spring inyecta las dependencias por constructor. La Pantalla no toca entidades: solo recibe DTO del Gestor.
+**Regla**: la Pantalla le habla directo al Gestor y el Gestor a los repositorios; Spring inyecta las dependencias por constructor. La Pantalla no toca entidades: solo recibe DTO del Gestor. Solo los repositorios conocen JPA.
 
 ## Persistencia
 
-**Spring Data JPA + Hibernate** (ORM) sobre **H2 embebido en modo archivo**.
+**JPA + Hibernate** (ORM) sobre **H2 embebido en modo archivo**. Los repositorios usan el `EntityManager` con JPQL; Spring Data no genera repositorios (el starter `spring-boot-starter-data-jpa` queda porque trae Hibernate y las transacciones).
 
 - Base: `jdbc:h2:file:./db/bolsines` → `backend/db/bolsines.mv.db` (relativa a la carpeta desde la que se levanta el backend; está en `.gitignore`).
 - Esquema: lo crea y actualiza Hibernate a partir de las anotaciones de las entidades (`spring.jpa.hibernate.ddl-auto=update`): no hay SQL a mano.
-- `spring.jpa.open-in-view=true`: la sesión de JPA queda abierta durante todo el request, así el gestor y los DTO pueden recorrer las colecciones (que se cargan bajo demanda, LAZY). Como el Gestor guarda el bolsín seleccionado de un pedido al siguiente, en la selección y en la confirmación lo vuelve a leer con `findById` (las colecciones LAZY de una entidad de un pedido anterior ya no se pueden cargar).
+- **Lecturas, una sola vez al iniciar el CU**: `opRegistrarRecepcionBolsin()` llama primero a `cargarDatos()` (privado), que carga en atributos del Gestor los empleados, los bolsines y los estados (`obtenerTodos()` de cada repositorio). La selección, la opción y la confirmación trabajan con esos objetos en memoria; la única escritura es `bolsinRepository.guardar(bolsin)` en el paso 11.
+- **Sin cargas LAZY después**: las colecciones son LAZY y el Gestor guarda los objetos de un pedido al siguiente, cuando ya no se pueden cargar. Por eso `BolsinRepository.obtenerTodos()` las trae todas: un `JOIN FETCH` por cada `List` (cambios de estado del bolsín, remitos, cambios de estado de la documentación, detalles), en la misma transacción. Dos `List` en un mismo `JOIN FETCH` darían `MultipleBagFetchException`; con una por consulta, Hibernate completa las colecciones de los mismos objetos (un objeto por fila).
+- `spring.jpa.open-in-view=false`: la sesión de JPA dura lo que cada método del repositorio.
+- `guardar(bolsin)` hace `merge`: como el bolsín viene de otro pedido, Hibernate hace sus propios SELECT para compararlo con la base antes de los UPDATE/INSERT (8 para el 1003 y 12 para el 1001). Son internos de `guardar()`, no consultas del Gestor; `hibernate.default_batch_fetch_size` no los reduce.
 - Datos de prueba: `CargadorDatosDePrueba` los carga al iniciar, **solo si la base está vacía**, usando los repositorios.
 - Sesión: `InicioDeSesion` crea la `Sesion` del usuario configurado en `bolsines.usuario-logueado` (no hay login).
 - Para reiniciar los datos: apagar el backend y borrar `backend/db/`.
@@ -47,7 +50,7 @@ Frontend (React) ──HTTP──▶ Pantalla (Presentation) → Gestor → Repo
 | Empleado → Usuario | `@OneToOne` (FK `usuario_nombre`, única) | PERSIST, MERGE |
 | → Estado, ComisionMedica, TipoDocumento, Empleado (en los cambios de estado) | `@ManyToOne` | ninguna (catálogos / datos maestros) |
 
-Con estas cascadas, un solo `save(bolsin)` persiste el paso 11 completo (estados de bolsín, remitos y documentación, y sus historiales) en una transacción.
+Con estas cascadas, un solo `bolsinRepository.guardar(bolsin)` persiste el paso 11 completo (estados de bolsín, remitos y documentación, y sus historiales) en una transacción.
 
 ## Entidades
 
@@ -117,8 +120,8 @@ backend/
     │   ├── Config/                    (AppConfig, CargadorDatosDePrueba, InicioDeSesion)
     │   ├── Presentation/Api/          (PantallaRegistrarRecepcionBolsin, errores)
     │   ├── Dto/                       (records de la API y cuerpos de los POST)
-    │   ├── Gestores/                  (caso de uso)
-    │   ├── Repositories/              (interfaces JpaRepository)
+    │   ├── Gestores/                  (CU 28 y CU 29)
+    │   ├── Repositories/              (clases con EntityManager)
     │   ├── Domain/Entities/           (entidades JPA)
     │   └── Domain/Iterator/           (patrón Iterator: IIterador, IAgregado, IteradorRemito, IteradorDetalle)
     ├── main/resources/application.properties
@@ -135,4 +138,5 @@ frontend/
 
 ## Pendiente
 
-- Del CU 28: las opciones de recepción 2, 3 y 4 (A3, A4, A5) y el CU 29 del paso 12 (`llamarCU29()` está vacío).
+- Del CU 28: las opciones de recepción 2, 3 y 4 (A3, A4, A5).
+- CU 29: no se mandan mails reales; la notificación queda en el log del backend.

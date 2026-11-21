@@ -1,25 +1,29 @@
-import { Badge, Button, Modal } from '@/shared/components';
-import type { Bolsin } from '../types/recepcion.types';
+import { Alert, Badge, Button, Modal } from '@/shared/components';
+import type { RecepcionRegistrada } from '../types/recepcion.types';
 import { RemitosList } from './RemitosList';
 
 interface RecepcionExitosaModalProps {
-  bolsin: Bolsin | null;
+  recepcion: RecepcionRegistrada | null;
   onCerrar: () => void;
 }
 
-export const RecepcionExitosaModal = ({ bolsin, onCerrar }: RecepcionExitosaModalProps) => (
+export const RecepcionExitosaModal = ({ recepcion, onCerrar }: RecepcionExitosaModalProps) => (
   <Modal
     title="Recepcion registrada"
-    open={bolsin !== null}
+    open={recepcion !== null}
     onClose={onCerrar}
     footer={<Button onClick={onCerrar}>Listo</Button>}
   >
-    {bolsin && (
+    {recepcion && (
       <>
         <p className="exito">
-          Bolsin #{bolsin.numero} <Badge label={bolsin.estado} />
+          Bolsin #{recepcion.bolsin.numero} <Badge label={recepcion.bolsin.estado} />
         </p>
-        <RemitosList remitos={bolsin.remitos} />
+        {/* Paso 12: resultado del CU 29 Notificar recepcion de bolsin */}
+        {recepcion.notificacionEnviada && (
+          <Alert tone="success">Notificación enviada a la CM origen ({recepcion.bolsin.cmOrigen.nombre})</Alert>
+        )}
+        <RemitosList remitos={recepcion.bolsin.remitos} />
       </>
     )}
   </Modal>

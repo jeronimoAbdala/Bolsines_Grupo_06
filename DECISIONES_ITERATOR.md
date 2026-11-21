@@ -720,3 +720,83 @@ Remito #501
 - **Ajuste posterior — Solo el CU 28**: ver ítem 18. `RecepcionBolsinFlujoTest` sin los 2 tests de "Agregar remito" (quedan 9). `mvn test`: 24 tests, 0 fallas; `npx tsc -b` y `npx vite build` OK. También se corrigió el comentario de la clave asignada en `Bolsin`, `Remito` y `Documentacion` (nombraba los `obtenerSiguienteNumero…` borrados; sin cambios de código).
 - **Ajuste posterior — Más datos de prueba** (`CargadorDatosDePrueba`): CM Rosario (3), Mendoza (4) y Tucumán (5), cada una con su empleado responsable de los envíos (Lucía Fernández, Martín Gómez, Sofía Ruiz). Bolsines pendientes para Cordoba: 1003 (Rosario, 1 remito con 1 documentación), 1004 (Mendoza, 2 remitos con 2 y 1) y 1005 (Tucumán, 1 remito con 4, una de cada tipo). Bolsines que no aparecen en el paso 3: 1006 (Mendoza → Buenos Aires: `esTuCM()` da falso) y 1007 (Rosario → Cordoba ya recibido: `sosEnviado()` da falso), cuyo historial se armó con `Bolsin.recibir(...)`, la misma lógica del paso 11, a cargo de jero un día después del envío. Remitos 503 a 508, documentaciones 6 a 15, cada bolsín enviado un día distinto. Los datos de 1001 y 1002 no cambiaron. `RecepcionBolsinFlujoTest`: los tests 3 y 9 con las listas nuevas, más el 10 (Iterator del 1005) y el 11 (historial del 1007). En README y en el caso de uso, el ejemplo de A2 pasó de `Rosario` (ahora encuentra el 1003) a `Salta`. `mvn test`: 26 tests, 0 fallas; `npx tsc -b` y `npx vite build` OK.
 - Todos los archivos en CRLF; no se tocó git ni `backend/db/`.
+
+## 9. Correcciones de la defensa
+
+Rama `correcciones-defensa` (desde `master`). En la defensa el profesor marcó 3 puntos: acoplamiento entre la lógica de negocio y la capa de datos, redundancia en las llamadas a la base y la llamada al CU 29 sin implementar. No se tocaron el Iterator ni la lógica del dominio (`recibir`, `aceptar`, `aceptarDocumentacion`, `esRecibidaYAceptada`, `crearNuevoCE`, `sosActual`, …). La Pantalla solo cambió el tipo de la respuesta de la confirmación (CU 29); el diagrama de secuencia (DiagSecuenciaCorregido2) se sigue respetando.
+
+### 9.1 Decisiones (aprobadas)
+
+| # | Decisión |
+|---|---|
+| D1 | `RecepcionRegistradaDto(BolsinDto bolsin, boolean notificacionEnviada)` nuevo, para la respuesta de `/confirmacion` (sumar el campo a `BolsinDto` no servía: también se usa en la selección) |
+| D2 | El CU 29 notifica a la CM origen del bolsín |
+| D3 | Los estados se traen una sola vez. Primero se trajeron en `tomarConfirmacion()`; después se decidió llevar **todas** las lecturas al inicio del CU (ver 9.3) |
+| D4 | `spring.jpa.open-in-view=false` |
+| D5 | Los atributos del Gestor siguen como `bolsinRepository`, `empleadoRepository`, `estadoRepository` |
+| D6 | `EntityManager` con `@PersistenceContext` en el atributo de cada repositorio |
+| D7 | La nota "poner como atributo el Id" de `mejorarProximaEntrega.txt` queda fuera de esta tarea |
+| R1 | Se aceptan los SELECT internos del `merge` con `open-in-view=false`; no se deja `hibernate.default_batch_fetch_size` (no los reduce) |
+
+### 9.2 Punto 1 — Acoplamiento entre la lógica de negocio y la capa de datos
+
+**Problema**: el Gestor hacía persistencia directa: `findById(...).orElse(null)` (con `Optional`), `save(...)` y conocía las cascadas. Los repositorios eran interfaces de Spring Data (`JpaRepository`).
+
+**Solución**: los 6 archivos de `Repositories` pasaron a ser **clases** `@Repository`, una por entidad, sin archivos extra. Por dentro usan el `EntityManager` de JPA (`@PersistenceContext`), consultas JPQL y `@Transactional`. Ofrecen métodos con nombre de negocio (lista mínima según lo que usan el Gestor, `CargadorDatosDePrueba` e `InicioDeSesion`):
+
+| Clase | Métodos | Qué hace por dentro |
+|---|---|---|
+| `BolsinRepository` | `obtenerTodos()`, `guardar(bolsin)` | 4 consultas `JOIN FETCH` en una transacción (ver 9.3); `merge` (las cascadas guardan remitos, documentación e historiales) |
+| `EmpleadoRepository` | `obtenerTodos()`, `guardar(empleado)` | `select e from Empleado e`; `persist` (cascada al Usuario) |
+| `EstadoRepository` | `obtenerTodos()`, `guardar(estado)` | `select e from Estado e`; `persist` |
+| `ComisionMedicaRepository` | `guardar(cm)` | `persist` |
+| `TipoDocumentoRepository` | `guardar(tipo)` | `persist` |
+| `UsuarioRepository` | `buscarPorNombre(nombre)` | `entityManager.find(...)`, `null` si no existe |
+
+El Gestor no importa nada de Spring Data, JPA (`jakarta.persistence`) ni `Optional`, y no usa `findById`/`save`/`merge`: solo llama a `obtenerTodos()` y `guardar(bolsin)`. En el paso 11, después de `recibir()`, llama a `bolsinRepository.guardar(bolsin)`; cómo se guarda (merge, cascadas) queda dentro del repositorio. `CargadorDatosDePrueba` e `InicioDeSesion` usan los mismos métodos (las comisiones médicas se crean con `new` y se guardan con `guardar`, en vez de usar la instancia que devolvía `save()`). El starter `spring-boot-starter-data-jpa` queda en el `pom.xml` porque trae Hibernate y las transacciones.
+
+### 9.3 Punto 2 — Redundancia en las llamadas a la base
+
+**Problema**: `findById` para volver a leer el bolsín en `tomarSeleccionBolsin()` y en `tomarConfirmacion()`, y `estadoRepository.findAll()` tres veces (una por cada `obtenerEstado…()`).
+
+**Solución**: el Gestor **lee una sola vez, al iniciar el CU, y escribe una sola vez, al confirmar**.
+
+- `opRegistrarRecepcionBolsin()` llama primero a `cargarDatos()` (privado, como el ejemplo de la cátedra), que carga en atributos los `empleados` (para `buscarUsuarioLogueado()`), los `bolsines` (para `buscarBolsinesEnviados()`) y los `estados`. Son las únicas lecturas de la base del Gestor.
+- La selección usa el objeto de la lista del paso 3 (sin `findById`); la confirmación trabaja con ese mismo objeto.
+- Los tres `obtenerEstado…()` recorren el atributo `estados` con su loop "mientras haya estados" del diagrama; `tomarConfirmacion()` ya no llama a `estadoRepository`.
+- La única escritura es `bolsinRepository.guardar(bolsin)` en el paso 11.
+- No queda otra consulta repetida: empleados, bolsines y estados se leen una vez por cada inicio del CU, e `InicioDeSesion` una vez al arrancar.
+
+**LAZY sin volver a leer**: antes se releía porque las colecciones LAZY (remitos, detalles, cambios de estado) de un objeto de un pedido anterior ya no se pueden cargar. Ahora `BolsinRepository.obtenerTodos()` trae todo lo que usan el Iterator y `recibir()`: un `JOIN FETCH` por cada `List`, en la misma transacción (cambios de estado del bolsín, remitos, cambios de estado de la documentación y detalles de cada remito). Dos `List` en el mismo `JOIN FETCH` dan `MultipleBagFetchException`, porque Hibernate tendría que armar el producto cartesiano y con `List` no distingue las filas repetidas; con una por consulta no pasa, y como en una transacción Hibernate tiene un solo objeto por fila, cada consulta completa las colecciones de los mismos objetos. No se tocaron las entidades.
+
+**SELECT del `merge`**: `guardar(bolsin)` hace `merge` porque el bolsín viene de otro pedido. Hibernate hace sus propios SELECT para comparar ese objeto con la base antes de los UPDATE/INSERT: son **internos de `guardar()`**, no consultas del Gestor. Medición en la confirmación:
+
+| Bolsín | SELECT del merge | Con `default_batch_fetch_size=16` | Con `open-in-view=true` (solo para comparar) |
+|---|---|---|---|
+| 1003 (1 remito, 1 documentación) | 8 | 8 | 5 |
+| 1001 (2 remitos, 4 documentaciones) | 12 | 12 | 9 |
+
+El batch no los reduce (el merge busca cada objeto por su id, de a uno), así que no se dejó. `open-in-view=true` solo ahorraba 3; se mantuvo `false`.
+
+**Test**: `RecepcionBolsinFlujoTest` suma el test 12, que con las estadísticas de Hibernate (`hibernate.generate_statistics=true`, solo en el perfil `test`) verifica que, después de iniciar el CU, la selección y la opción ejecutan **0 sentencias SQL** y la confirmación **0 consultas** del Gestor (solo quedan los SELECT internos del merge).
+
+### 9.4 Punto 3 — Llamada al CU 29 sin implementar
+
+**Problema**: `llamarCU29()` estaba vacío.
+
+**Solución**:
+
+- `Gestores/GestorNotificarRecepcionBolsin` (nuevo, `@Service`): Gestor del CU 29 Notificar recepción de bolsín. `notificarRecepcion(bolsin): boolean`. Según la ERS notifica por email a la CM origen; sin servidor de correo, deja la notificación en el log ("CU 29: notificacion enviada a Buenos Aires (cmba@correo.com): el bolsin #1001 fue recibido en Cordoba (RecibidoEnCMDestino).") y devuelve `true`.
+- `GestorRecepcionBolsin` lo recibe por constructor (lo inyecta Spring). `llamarCU29()` es el `<<include>>` del diagrama: lo llama y guarda el resultado en `notificacionEnviada`.
+- `tomarConfirmacion()` devuelve `RecepcionRegistradaDto` (el `BolsinDto` y `notificacionEnviada`), armado antes de `finCU()`; la Pantalla lo devuelve en `informarRecepcion()`.
+- Frontend: tipo `RecepcionRegistrada`, `recepcionService.confirmar()` lo devuelve y `RecepcionExitosaModal` muestra "Notificación enviada a la CM origen (…)".
+- `RecepcionBolsinFlujoTest`: el test 6 lee `$.bolsin.…` y verifica `$.notificacionEnviada = true`.
+
+### 9.5 Bitácora
+
+- **Etapa 1 — Repositorios como clases, Gestor sin JPA, sin redundancias**: 6 repositorios como clases; Gestor, `CargadorDatosDePrueba` e `InicioDeSesion` con los métodos nuevos; `open-in-view=false`; test 12. Medición del merge (9.3). `mvn test`: 27 tests, 0 fallas.
+- **Ajuste — Todas las lecturas al inicio del CU**: empleados, bolsines y estados se cargan en `opRegistrarRecepcionBolsin()`; `tomarConfirmacion()` ya no lee estados; el test 12 pide 0 consultas del Gestor en la confirmación. `mvn test`: 27 tests, 0 fallas.
+- **Etapa 2 — CU 29**: `GestorNotificarRecepcionBolsin`, `RecepcionRegistradaDto`, `llamarCU29()`, Pantalla y frontend (types, service, `RecepcionPage`, `RecepcionExitosaModal`). `mvn test`: 27 tests, 0 fallas; `npx tsc -b` y `npx vite build` OK.
+- **Etapa 3 — Docs**: `ARQUITECTURA.md` (capas, Repository, Persistencia, estructura, pendiente), `CASO_DE_USO_RECEPCION.md` (pasos 1, 3, 5, 11 y 12, árboles de los pasos 6 y 10-11, no implementado), `README.md` (tecnología, recorrido, tests, API) y esta sección. Las secciones 1 a 8 no se tocaron (registro histórico).
+- **Ajuste — `cargarDatos()`**: por legibilidad, las tres lecturas pasaron de `opRegistrarRecepcionBolsin()` a un método privado `cargarDatos()`, que `opRegistrarRecepcionBolsin()` llama primero. Sin otros cambios. `mvn test`: 27 tests, 0 fallas.
+- Todos los archivos en CRLF; no se tocó git ni `backend/db/`.
