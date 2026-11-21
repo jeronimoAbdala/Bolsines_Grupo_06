@@ -1,4 +1,0 @@
-Acomplamiento entre logica de negocio y capa de datos
-Redundancia en llamada a base de datos
-Llamada al CU sin implementar (hacer una clase gestor cu 29, en la interfaz hacer algo como un Notificacion enviada)
-Y poner como atributo el Id(esto ver si es necesario)
