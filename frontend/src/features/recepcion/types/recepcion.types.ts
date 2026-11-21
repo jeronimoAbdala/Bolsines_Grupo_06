@@ -69,3 +69,9 @@ export interface DetalleRecepcion {
   informacionRemito: string;
   opcionesRecepcion: string[];
 }
+
+/** Respuesta de POST /recepcion/confirmacion (paso 12): el bolsin recibido y si se envio la notificacion del CU 29. */
+export interface RecepcionRegistrada {
+  bolsin: Bolsin;
+  notificacionEnviada: boolean;
+}

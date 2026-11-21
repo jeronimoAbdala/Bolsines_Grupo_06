@@ -5,6 +5,7 @@ import main.Dto.BolsinEnviadoDto;
 import main.Dto.BolsinParaSeleccionDto;
 import main.Dto.ComisionMedicaDto;
 import main.Dto.DetalleRecepcionDto;
+import main.Dto.RecepcionRegistradaDto;
 import main.Dto.Requests;
 import main.Dto.UsuarioDto;
 import main.Dto.VentanaRecepcionDto;
@@ -135,17 +136,17 @@ public class PantallaRegistrarRecepcionBolsin {
 
     // tomarConfirmacion() — paso 10
     @PostMapping("/confirmacion")
-    public BolsinDto tomarConfirmacion() {
+    public RecepcionRegistradaDto tomarConfirmacion() {
         synchronized (gestor) {
             return informarRecepcion(gestor.tomarConfirmacion());
         }
     }
 
-    // informarRecepcion() — paso 12
-    private BolsinDto informarRecepcion(BolsinDto recibido) {
-        if (recibido == null) {
+    // informarRecepcion() — paso 12: el bolsin recibido y si se envio la notificacion del CU 29
+    private RecepcionRegistradaDto informarRecepcion(RecepcionRegistradaDto recepcion) {
+        if (recepcion == null) {
             throw ApiException.conflicto("No hay un bolsin seleccionado con la opcion 1 para recibir.");
         }
-        return recibido;
+        return recepcion;
     }
 }

@@ -4,6 +4,7 @@ import main.Domain.Entities.*;
 import main.Dto.BolsinDto;
 import main.Dto.BolsinEnviadoDto;
 import main.Dto.ComisionMedicaDto;
+import main.Dto.RecepcionRegistradaDto;
 import main.Dto.UsuarioDto;
 import main.Repositories.BolsinRepository;
 import main.Repositories.EmpleadoRepository;
@@ -14,16 +15,22 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Una sola instancia (Spring la crea y le inyecta los repositorios por constructor). */
+/** Una sola instancia (Spring la crea y le inyecta los repositorios y el Gestor del CU 29 por constructor). */
 @Service
 public class GestorRecepcionBolsin {
 
     private final BolsinRepository bolsinRepository;
     private final EmpleadoRepository empleadoRepository;
     private final EstadoRepository estadoRepository;
+    private final GestorNotificarRecepcionBolsin gestorNotificarRecepcionBolsin;
 
     private Sesion sesionActual;
     private Empleado empleadoLogueado;
+
+    /** Datos que el CU lee de la base, una sola vez al iniciar (opRegistrarRecepcionBolsin); despues todo es en memoria. */
+    private List<Empleado> empleados = new ArrayList<>();
+    private List<Bolsin> bolsines = new ArrayList<>();
+    private List<Estado> estados = new ArrayList<>();
 
     private List<Bolsin> bolsinesSeleccionados = new ArrayList<>();
     /** Datos de cada bolsin de bolsinesSeleccionados para la Pantalla (paso 4), sin entidades. */
@@ -33,18 +40,20 @@ public class GestorRecepcionBolsin {
     private LocalDateTime fechaHoraActual;
     private Bolsin bolsinSeleccionado;
 
-    /** Estados persistidos: se traen una sola vez en tomarConfirmacion() y los recorren los tres obtenerEstado…(). */
-    private List<Estado> estados = new ArrayList<>();
     private Estado estadoRecibidoEnCMDestino;
     private Estado estadoRecibidoYAceptado;
     private Estado estadoRecibidaYAceptada;
+    /** Resultado del CU 29 (llamarCU29()). */
+    private boolean notificacionEnviada;
 
     public GestorRecepcionBolsin(BolsinRepository bolsinRepository,
                                  EmpleadoRepository empleadoRepository,
-                                 EstadoRepository estadoRepository) {
+                                 EstadoRepository estadoRepository,
+                                 GestorNotificarRecepcionBolsin gestorNotificarRecepcionBolsin) {
         this.bolsinRepository = bolsinRepository;
         this.empleadoRepository = empleadoRepository;
         this.estadoRepository = estadoRepository;
+        this.gestorNotificarRecepcionBolsin = gestorNotificarRecepcionBolsin;
     }
 
     /** No hay login: la Sesion actual se crea al iniciar la aplicacion y se registra aca. */
@@ -54,9 +63,17 @@ public class GestorRecepcionBolsin {
 
     // opRegistrarRecepcionBolsin() — pasos 2 y 3
     public void opRegistrarRecepcionBolsin() {
+        cargarDatos();
         buscarUsuarioLogueado();
         if (empleadoLogueado == null) return;
         buscarBolsinesEnviados(empleadoLogueado.getCM());   // getCM() — paso 2
+    }
+
+    // Unicas lecturas de la base del CU: empleados, bolsines y estados; despues todo es en memoria.
+    private void cargarDatos() {
+        this.empleados = empleadoRepository.obtenerTodos();
+        this.bolsines = bolsinRepository.obtenerTodos();
+        this.estados = estadoRepository.obtenerTodos();
     }
 
     /**
@@ -67,7 +84,7 @@ public class GestorRecepcionBolsin {
         this.empleadoLogueado = null;
         if (sesionActual == null) return;
         Usuario usuario = sesionActual.getUsuario();
-        for (Empleado empleado : empleadoRepository.obtenerTodos()) {
+        for (Empleado empleado : empleados) {
             if (empleado.esTuUsuario(usuario)) {
                 this.empleadoLogueado = empleado;
                 break;
@@ -76,11 +93,10 @@ public class GestorRecepcionBolsin {
     }
 
     // buscarBolsinesEnviados() — paso 3: *sosEnviado(), *esTuCM(); getCMOrigen() y getNroPrecinto() — paso 4.
-    // Unica lectura de bolsines del CU: la seleccion y la confirmacion usan estos mismos objetos.
     public void buscarBolsinesEnviados(String cm) {
         this.bolsinesSeleccionados = new ArrayList<>();
         this.bolsinesEnviados = new ArrayList<>();
-        for (Bolsin bolsin : bolsinRepository.obtenerTodos()) {
+        for (Bolsin bolsin : bolsines) {
             if (bolsin.sosEnviado() && bolsin.esTuCM(cm)) {
                 bolsinesSeleccionados.add(bolsin);
                 bolsinesEnviados.add(new BolsinEnviadoDto(bolsin.getNumero(),
@@ -123,23 +139,22 @@ public class GestorRecepcionBolsin {
     }
 
     // tomarConfirmacion() — pasos 10 y 11; devuelve los datos de informarRecepcion() (paso 12). Solo la opcion 1.
-    public BolsinDto tomarConfirmacion() {
+    public RecepcionRegistradaDto tomarConfirmacion() {
         if (bolsinSeleccionado == null || opcionDeRecepcion != 1) return null;
-        this.estados = estadoRepository.obtenerTodos();   // una sola vez para los tres obtenerEstado…()
         obtenerEstadoRecibidoEnCMDestino();
         obtenerEstadoRecibidoYAceptado();
         obtenerEstadoRecibidaYAceptada();
         getFechaYHoraActual();
         bolsinSeleccionado.recibir(estadoRecibidoEnCMDestino, estadoRecibidoYAceptado,
                 estadoRecibidaYAceptada, empleadoLogueado, fechaHoraActual);
-        bolsinRepository.guardar(bolsinSeleccionado);
+        bolsinRepository.guardar(bolsinSeleccionado);   // unica escritura del CU
         llamarCU29();
-        BolsinDto recibido = BolsinDto.de(bolsinSeleccionado);
+        RecepcionRegistradaDto recepcion = new RecepcionRegistradaDto(BolsinDto.de(bolsinSeleccionado), notificacionEnviada);
         finCU();
-        return recibido;
+        return recepcion;
     }
 
-    /** Recorre los estados traidos en tomarConfirmacion() preguntando *esAmbitoBolsin() y esEstadoRecibidoEnCMDestino(). */
+    /** Recorre los estados cargados al iniciar el CU preguntando *esAmbitoBolsin() y esEstadoRecibidoEnCMDestino(). */
     public Estado obtenerEstadoRecibidoEnCMDestino() {
         this.estadoRecibidoEnCMDestino = null;
         for (Estado estado : estados) {
@@ -151,7 +166,7 @@ public class GestorRecepcionBolsin {
         return estadoRecibidoEnCMDestino;
     }
 
-    /** Recorre los estados traidos en tomarConfirmacion() preguntando *esAmbitoRemito() y esEstadoRecibidoYAceptado(). */
+    /** Recorre los estados cargados al iniciar el CU preguntando *esAmbitoRemito() y esEstadoRecibidoYAceptado(). */
     public Estado obtenerEstadoRecibidoYAceptado() {
         this.estadoRecibidoYAceptado = null;
         for (Estado estado : estados) {
@@ -163,7 +178,7 @@ public class GestorRecepcionBolsin {
         return estadoRecibidoYAceptado;
     }
 
-    /** Recorre los estados traidos en tomarConfirmacion() preguntando *esAmbitoDocumentacion() y esEstadoRecibidaYAceptada(). */
+    /** Recorre los estados cargados al iniciar el CU preguntando *esAmbitoDocumentacion() y esEstadoRecibidaYAceptada(). */
     public Estado obtenerEstadoRecibidaYAceptada() {
         this.estadoRecibidaYAceptada = null;
         for (Estado estado : estados) {
@@ -180,8 +195,9 @@ public class GestorRecepcionBolsin {
         return fechaHoraActual;
     }
 
-    // llamarCU29() — paso 12: el CU 29 Notificar recepcion de bolsin no se implementa.
+    // llamarCU29() — paso 12: <<include>> del CU 29 Notificar recepcion de bolsin.
     public void llamarCU29() {
+        this.notificacionEnviada = gestorNotificarRecepcionBolsin.notificarRecepcion(bolsinSeleccionado);
     }
 
     // finCU() — paso 12: tambien vacia las listas, asi un bolsin recibido no se puede volver a elegir.
