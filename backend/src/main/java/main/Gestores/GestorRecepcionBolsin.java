@@ -33,7 +33,8 @@ public class GestorRecepcionBolsin {
     private LocalDateTime fechaHoraActual;
     private Bolsin bolsinSeleccionado;
 
-    /** Estados persistidos que obtiene el paso 11 recorriendo estadoRepository.findAll(). */
+    /** Estados persistidos: se traen una sola vez en tomarConfirmacion() y los recorren los tres obtenerEstado…(). */
+    private List<Estado> estados = new ArrayList<>();
     private Estado estadoRecibidoEnCMDestino;
     private Estado estadoRecibidoYAceptado;
     private Estado estadoRecibidaYAceptada;
@@ -66,7 +67,7 @@ public class GestorRecepcionBolsin {
         this.empleadoLogueado = null;
         if (sesionActual == null) return;
         Usuario usuario = sesionActual.getUsuario();
-        for (Empleado empleado : empleadoRepository.findAll()) {
+        for (Empleado empleado : empleadoRepository.obtenerTodos()) {
             if (empleado.esTuUsuario(usuario)) {
                 this.empleadoLogueado = empleado;
                 break;
@@ -74,11 +75,12 @@ public class GestorRecepcionBolsin {
         }
     }
 
-    // buscarBolsinesEnviados() — paso 3: *sosEnviado(), *esTuCM(); getCMOrigen() y getNroPrecinto() — paso 4
+    // buscarBolsinesEnviados() — paso 3: *sosEnviado(), *esTuCM(); getCMOrigen() y getNroPrecinto() — paso 4.
+    // Unica lectura de bolsines del CU: la seleccion y la confirmacion usan estos mismos objetos.
     public void buscarBolsinesEnviados(String cm) {
         this.bolsinesSeleccionados = new ArrayList<>();
         this.bolsinesEnviados = new ArrayList<>();
-        for (Bolsin bolsin : bolsinRepository.findAll()) {
+        for (Bolsin bolsin : bolsinRepository.obtenerTodos()) {
             if (bolsin.sosEnviado() && bolsin.esTuCM(cm)) {
                 bolsinesSeleccionados.add(bolsin);
                 bolsinesEnviados.add(new BolsinEnviadoDto(bolsin.getNumero(),
@@ -93,8 +95,7 @@ public class GestorRecepcionBolsin {
         this.bolsinSeleccionado = null;
         for (Bolsin bolsin : bolsinesSeleccionados) {
             if (bolsin.esTuNumero(numeroBolsin)) {
-                // Persistencia: se vuelve a leer en este pedido (el de la lista es de un pedido anterior).
-                this.bolsinSeleccionado = bolsinRepository.findById(numeroBolsin).orElse(null);
+                this.bolsinSeleccionado = bolsin;
             }
         }
         obtenerInformacionRemito();
@@ -124,25 +125,24 @@ public class GestorRecepcionBolsin {
     // tomarConfirmacion() — pasos 10 y 11; devuelve los datos de informarRecepcion() (paso 12). Solo la opcion 1.
     public BolsinDto tomarConfirmacion() {
         if (bolsinSeleccionado == null || opcionDeRecepcion != 1) return null;
-        // Persistencia: se vuelve a leer en este pedido (la seleccion es de un pedido anterior).
-        this.bolsinSeleccionado = bolsinRepository.findById(bolsinSeleccionado.getNumero()).orElse(null);
+        this.estados = estadoRepository.obtenerTodos();   // una sola vez para los tres obtenerEstado…()
         obtenerEstadoRecibidoEnCMDestino();
         obtenerEstadoRecibidoYAceptado();
         obtenerEstadoRecibidaYAceptada();
         getFechaYHoraActual();
         bolsinSeleccionado.recibir(estadoRecibidoEnCMDestino, estadoRecibidoYAceptado,
                 estadoRecibidaYAceptada, empleadoLogueado, fechaHoraActual);
-        bolsinRepository.save(bolsinSeleccionado);   // persistencia: un solo save() guarda todo (cascadas)
+        bolsinRepository.guardar(bolsinSeleccionado);
         llamarCU29();
         BolsinDto recibido = BolsinDto.de(bolsinSeleccionado);
         finCU();
         return recibido;
     }
 
-    /** Recorre todos los estados preguntando *esAmbitoBolsin() y esEstadoRecibidoEnCMDestino(). */
+    /** Recorre los estados traidos en tomarConfirmacion() preguntando *esAmbitoBolsin() y esEstadoRecibidoEnCMDestino(). */
     public Estado obtenerEstadoRecibidoEnCMDestino() {
         this.estadoRecibidoEnCMDestino = null;
-        for (Estado estado : estadoRepository.findAll()) {
+        for (Estado estado : estados) {
             if (estado.esAmbitoBolsin() && estado.esEstadoRecibidoEnCMDestino()) {
                 this.estadoRecibidoEnCMDestino = estado;
                 break;
@@ -151,10 +151,10 @@ public class GestorRecepcionBolsin {
         return estadoRecibidoEnCMDestino;
     }
 
-    /** Recorre todos los estados preguntando *esAmbitoRemito() y esEstadoRecibidoYAceptado(). */
+    /** Recorre los estados traidos en tomarConfirmacion() preguntando *esAmbitoRemito() y esEstadoRecibidoYAceptado(). */
     public Estado obtenerEstadoRecibidoYAceptado() {
         this.estadoRecibidoYAceptado = null;
-        for (Estado estado : estadoRepository.findAll()) {
+        for (Estado estado : estados) {
             if (estado.esAmbitoRemito() && estado.esEstadoRecibidoYAceptado()) {
                 this.estadoRecibidoYAceptado = estado;
                 break;
@@ -163,10 +163,10 @@ public class GestorRecepcionBolsin {
         return estadoRecibidoYAceptado;
     }
 
-    /** Recorre todos los estados preguntando *esAmbitoDocumentacion() y esEstadoRecibidaYAceptada(). */
+    /** Recorre los estados traidos en tomarConfirmacion() preguntando *esAmbitoDocumentacion() y esEstadoRecibidaYAceptada(). */
     public Estado obtenerEstadoRecibidaYAceptada() {
         this.estadoRecibidaYAceptada = null;
-        for (Estado estado : estadoRepository.findAll()) {
+        for (Estado estado : estados) {
             if (estado.esAmbitoDocumentacion() && estado.esEstadoRecibidaYAceptada()) {
                 this.estadoRecibidaYAceptada = estado;
                 break;

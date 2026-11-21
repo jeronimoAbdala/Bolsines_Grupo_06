@@ -35,7 +35,7 @@ public class InicioDeSesion implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        Usuario usuario = usuarioRepository.findById(nombreUsuario).orElse(null);
+        Usuario usuario = usuarioRepository.buscarPorNombre(nombreUsuario);
         if (usuario == null) {
             log.warn("Sesion: no existe el usuario '{}'; no hay usuario logueado.", nombreUsuario);
             return;
