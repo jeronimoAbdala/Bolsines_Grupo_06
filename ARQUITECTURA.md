@@ -5,52 +5,69 @@
 ## Capas
 
 ```
-Frontend (React) ──HTTP──▶ Pantalla (Presentation) → Gestor → Repository (EntityManager) → Hibernate → H2
+Frontend (React) ──HTTP──▶ Pantalla (Presentation) → Gestor → Repository (JpaRepository) → Hibernate → H2
                            (CU 28: entre la Pantalla y el Gestor viajan DTO; el Gestor trabaja con las entidades)
 ```
 
 | Capa | Paquete | Rol |
 |---|---|---|
 | **Presentation** | `Presentation/Api` | `PantallaRegistrarRecepcionBolsin`: la Pantalla del diagrama del CU 28 es un `@RestController`. Cada mensaje del actor es un endpoint y cada mensaje Gestor → Pantalla es un método privado que arma la respuesta con los DTO que le da el Gestor (no toca entidades). Además, el manejo de errores (`ManejadorErrores`, `ApiException`). Sin lógica de negocio. |
-| **Gestor** | `Gestores` | Lógica de los casos de uso, sin persistencia: `GestorRecepcionBolsin` (CU 28) y `GestorNotificarRecepcionBolsin` (CU 29, lo incluye el paso 12), los dos `@Service`. El del CU 28 es una sola instancia que guarda el estado del CU entre pedidos: lee la base una sola vez al iniciar el CU y escribe una sola vez al confirmar, siempre con métodos de los repositorios (no conoce JPA). |
+| **Gestor** | `Gestores` | Lógica de los casos de uso, sin persistencia: `GestorRecepcionBolsin` (CU 28) y `GestorNotificarRecepcionBolsin` (CU 29, lo incluye el paso 12), los dos `@Service`. El del CU 28 es una sola instancia que guarda el estado del CU entre pedidos: lee la base una sola vez al iniciar el CU (`findAll()`) y escribe una sola vez al confirmar (`save()`), siempre con métodos de los repositorios; no usa `findById` ni `Optional`. Si hay una interfaz, tiene que haber un service: el Gestor es el `@Service` que usa las interfaces de los repositorios. |
 | **Dto** | `Dto` | Records que entrega el Gestor y devuelve la API (`VentanaRecepcionDto`, `BolsinParaSeleccionDto`, `DetalleRecepcionDto`, `BolsinDto`, `RecepcionRegistradaDto`, `UsuarioDto`, …) y el cuerpo del POST de la opción de recepción (`Requests.OpcionDeRecepcion`). |
-| **Repository** | `Repositories` | Una clase `@Repository` por entidad (`BolsinRepository`, `ComisionMedicaRepository`, `EmpleadoRepository`, `EstadoRepository`, `TipoDocumentoRepository`, `UsuarioRepository`) con métodos de nombre de negocio: `obtenerTodos()`, `guardar(...)`, `buscarPorNombre(...)`. Por dentro usan el `EntityManager` de JPA (`@PersistenceContext`), consultas JPQL y `@Transactional`; las cascadas y el `merge` quedan acá. El Gestor usa los de Bolsin, Empleado y Estado; `CargadorDatosDePrueba` usa todos y `InicioDeSesion` el de Usuario. |
+| **Repository** | `Repositories` | Una interfaz `@Repository` por entidad que extiende `JpaRepository<Entidad, Clave>`, sin código propio, como en el ejemplo de la cátedra: `IBolsinRepository`, `IComisionMedicaRepository`, `IEmpleadoRepository`, `IEstadoRepository`, `ITipoDocumentoRepository`, `IUsuarioRepository`. Spring Data las implementa (`findAll()`, `save()`, `findById()`, cada uno con su transacción). El Gestor usa las de Bolsin, Empleado y Estado (`findAll()` y `save()`); `CargadorDatosDePrueba` usa todas (`save()` y `findAll()`) e `InicioDeSesion` la de Usuario (`findById(...).orElse(null)`). |
 | **Entities** | `Domain/Entities` | Modelo de dominio, mapeado a tablas con anotaciones JPA (`@Entity`). |
 | **Iterator** | `Domain/Iterator` | Patrón Iterator del paso 6 del CU 28: interfaces `IIterador` e `IAgregado` e iteradores concretos `IteradorRemito` e `IteradorDetalle` (clases comunes, no se persisten). |
 | **Config** | `Config` | `AppConfig` (CORS), `CargadorDatosDePrueba` e `InicioDeSesion` (tareas de arranque). |
 
-**Regla**: la Pantalla le habla directo al Gestor y el Gestor a los repositorios; Spring inyecta las dependencias por constructor. La Pantalla no toca entidades: solo recibe DTO del Gestor. Solo los repositorios conocen JPA.
+**Regla**: la Pantalla le habla directo al Gestor y el Gestor a los repositorios; Spring inyecta las dependencias por constructor. La Pantalla no toca entidades: solo recibe DTO del Gestor. JPA queda en las anotaciones de las entidades y en las interfaces de los repositorios.
 
 ## Persistencia
 
-**JPA + Hibernate** (ORM) sobre **H2 embebido en modo archivo**. Los repositorios usan el `EntityManager` con JPQL; Spring Data no genera repositorios (el starter `spring-boot-starter-data-jpa` queda porque trae Hibernate y las transacciones).
+**Spring Data JPA + Hibernate** (ORM) sobre **H2 embebido en modo archivo** (starter `spring-boot-starter-data-jpa`). Los repositorios son interfaces que Spring Data implementa; no hay consultas escritas a mano.
 
 - Base: `jdbc:h2:file:./db/bolsines` → `backend/db/bolsines.mv.db` (relativa a la carpeta desde la que se levanta el backend; está en `.gitignore`).
 - Esquema: lo crea y actualiza Hibernate a partir de las anotaciones de las entidades (`spring.jpa.hibernate.ddl-auto=update`): no hay SQL a mano.
-- **Lecturas, una sola vez al iniciar el CU**: `opRegistrarRecepcionBolsin()` llama primero a `cargarDatos()` (privado), que carga en atributos del Gestor los empleados, los bolsines y los estados (`obtenerTodos()` de cada repositorio). La selección, la opción y la confirmación trabajan con esos objetos en memoria; la única escritura es `bolsinRepository.guardar(bolsin)` en el paso 11.
-- **Sin cargas LAZY después**: las colecciones son LAZY y el Gestor guarda los objetos de un pedido al siguiente, cuando ya no se pueden cargar. Por eso `BolsinRepository.obtenerTodos()` las trae todas: un `JOIN FETCH` por cada `List` (cambios de estado del bolsín, remitos, cambios de estado de la documentación, detalles), en la misma transacción. Dos `List` en un mismo `JOIN FETCH` darían `MultipleBagFetchException`; con una por consulta, Hibernate completa las colecciones de los mismos objetos (un objeto por fila).
+- **Lecturas, una sola vez al iniciar el CU**: `opRegistrarRecepcionBolsin()` llama primero a `cargarDatos()` (privado), que carga en atributos del Gestor los empleados, los bolsines y los estados (`findAll()` de cada repositorio). La selección, la opción y la confirmación trabajan con esos objetos en memoria; la única escritura es `bolsinRepository.save(bolsin)` en el paso 11.
+- **Listas EAGER + SUBSELECT**: el Gestor guarda los objetos de un pedido al siguiente, cuando ya no hay sesión de JPA para cargar algo que falte. Por eso las listas que usan el Iterator y `recibir()` (`Bolsin.remitos`, `Bolsin.cambiosEstado`, `Remito.detalleRemito`, `Documentacion.cambiosEstado`) son `@OneToMany(fetch = FetchType.EAGER)` + `@Fetch(FetchMode.SUBSELECT)`: `findAll()` trae los bolsines y, con una consulta más por lista, todas sus colecciones. `SUBSELECT` evita la `MultipleBagFetchException` que darían dos `List` EAGER en la misma entidad.
+- `hibernate.default_batch_fetch_size=16`: las documentaciones de los detalles se cargan de a 16 en vez de una por una. `/iniciar` (los 3 `findAll()`) baja de **24 a 11 sentencias**.
 - `spring.jpa.open-in-view=false`: la sesión de JPA dura lo que cada método del repositorio.
-- `guardar(bolsin)` hace `merge`: como el bolsín viene de otro pedido, Hibernate hace sus propios SELECT para compararlo con la base antes de los UPDATE/INSERT (8 para el 1003 y 12 para el 1001). Son internos de `guardar()`, no consultas del Gestor; `hibernate.default_batch_fetch_size` no los reduce.
-- Datos de prueba: `CargadorDatosDePrueba` los carga al iniciar, **solo si la base está vacía**, usando los repositorios.
+- `save(bolsin)` hace `merge` (la clave natural ya está puesta): como el bolsín viene de otro pedido, Hibernate hace sus propios SELECT para compararlo con la base antes de los UPDATE/INSERT (**10 para el 1003 y 13 para el 1001**). Son internos de `save()`, no consultas del Gestor; el batch no los reduce.
+- Datos de prueba: `CargadorDatosDePrueba` los carga al iniciar, **solo si la base está vacía**, usando `save()` de los repositorios.
 - Sesión: `InicioDeSesion` crea la `Sesion` del usuario configurado en `bolsines.usuario-logueado` (no hay login).
-- Para reiniciar los datos: apagar el backend y borrar `backend/db/`.
+- Para reiniciar los datos: apagar el backend y borrar `backend/db/`. También hay que borrarla si cambia una clave: `ddl-auto=update` no migra claves primarias ni foráneas.
 - Tests: `mvn test` usa una H2 **en memoria** (perfil `test`).
 
 **Tablas (11)**: `estado`, `tipo_documento`, `comision_medica`, `usuario`, `empleado`, `bolsin`, `cambio_estado_bolsin`, `remito`, `detalle_remito`, `documentacion`, `cambio_estado_documentacion`.
+
+**Claves**: ninguna entidad tiene id técnico ni `@GeneratedValue`; todas usan su clave natural, simple o compuesta con una clase `XxxId` + `@IdClass`, como en el ejemplo de la cátedra.
+
+| Entidad | Clave primaria | Clase de la clave |
+|---|---|---|
+| `Bolsin`, `Remito`, `Documentacion` | `numero` | — |
+| `ComisionMedica` | `codigo` | — |
+| `Usuario` | `nombre_usuario` | — |
+| `TipoDocumento` | `nombre` | — |
+| `Estado` | `ambito` + `nombre` (el nombre solo no alcanza: "Enviado" es de bolsín y de remito) | `EstadoId` |
+| `Empleado` | `nombre` + `apellido` | `EmpleadoId` |
+| `CambioEstadoBolsin` | `bolsin_numero` + `fecha_hora_inicio` | `CambioEstadoBolsinId` |
+| `CambioEstadoDocumentacion` | `documentacion_numero` + `fecha_hora_inicio` | `CambioEstadoDocumentacionId` |
+| `DetalleRemito` | `remito_numero` + `documentacion_numero` | `DetalleRemitoId` |
+
+En los cambios de estado y en el detalle, la clave incluye columnas de otras entidades, como el Laboreo de la cátedra: al recibir, varias documentaciones reciben un cambio con la misma fecha/hora, estado y empleado, y las distingue el número de su documentación. Esas columnas son `@Id` simples del hijo (el hijo no conoce a su dueño: solo guarda su número, que le pasa el constructor) y las escribe el hijo; por eso la `@JoinColumn` del `@OneToMany` del dueño es `insertable = false, updatable = false`, y en `DetalleRemito` también la de la `@ManyToOne documentacion`.
 
 **Relaciones y cascadas**
 
 | Relación | Mapeo | Cascada |
 |---|---|---|
-| Bolsin → Remito (composición) | `@OneToMany` + FK `remito.bolsin_numero` | ALL |
-| Remito → DetalleRemito (composición) | `@OneToMany` + FK `detalle_remito.remito_numero` | ALL |
-| DetalleRemito → Documentacion | `@ManyToOne` (FK `documentacion_numero`) | PERSIST, MERGE |
-| Bolsin → CambioEstadoBolsin (historial) | `@OneToMany` + FK `cambio_estado_bolsin.bolsin_numero` | ALL |
-| Documentacion → CambioEstadoDocumentacion (historial) | `@OneToMany` + FK `cambio_estado_documentacion.documentacion_numero` | ALL |
+| Bolsin → Remito (composición) | `@OneToMany` EAGER + SUBSELECT, FK `remito.bolsin_numero` | ALL |
+| Remito → DetalleRemito (composición) | `@OneToMany` EAGER + SUBSELECT, FK `detalle_remito.remito_numero` (parte de la clave del detalle) | ALL |
+| DetalleRemito → Documentacion | `@ManyToOne` (FK `documentacion_numero`, parte de la clave del detalle) | PERSIST, MERGE |
+| Bolsin → CambioEstadoBolsin (historial) | `@OneToMany` EAGER + SUBSELECT, FK `cambio_estado_bolsin.bolsin_numero` (parte de la clave del cambio) | ALL |
+| Documentacion → CambioEstadoDocumentacion (historial) | `@OneToMany` EAGER + SUBSELECT, FK `cambio_estado_documentacion.documentacion_numero` (parte de la clave del cambio) | ALL |
 | Empleado → Usuario | `@OneToOne` (FK `usuario_nombre`, única) | PERSIST, MERGE |
-| → Estado, ComisionMedica, TipoDocumento, Empleado (en los cambios de estado) | `@ManyToOne` | ninguna (catálogos / datos maestros) |
+| → Estado (FK `estado_ambito` + `estado_nombre`), ComisionMedica, TipoDocumento (FK `tipo_documento_nombre`), Empleado (FK `empleado_nombre` + `empleado_apellido`, en los cambios de estado) | `@ManyToOne` | ninguna (catálogos / datos maestros) |
 
-Con estas cascadas, un solo `bolsinRepository.guardar(bolsin)` persiste el paso 11 completo (estados de bolsín, remitos y documentación, y sus historiales) en una transacción.
+Con estas cascadas, un solo `bolsinRepository.save(bolsin)` persiste el paso 11 completo (estados de bolsín, remitos y documentación, y sus historiales) en una transacción.
 
 ## Entidades
 
@@ -58,11 +75,11 @@ Con estas cascadas, un solo `bolsinRepository.guardar(bolsin)` persiste el paso 
 |---|---|---|
 | `Estado` | ambito (BOL/REM/DOC), nombre, descripcion | `esEnviado()`, `esAmbitoBolsin/Remito/Documentacion()`, `esEstadoRecibidoEnCMDestino()`, `esEstadoRecibidoYAceptado()`, `esEstadoRecibidaYAceptada()` |
 | `Bolsin` (`implements IAgregado`) | numero, fechaGeneracion, nroPrecinto, peso, estado, cmOrigen, cmDestino, remitos, cambiosEstado | `sosEnviado()` (por historial), `esTuCM()`, `crearIterador()` y `obtenerInformacionRemito(): String` (paso 6, con `IteradorRemito`), `recibir()`, `crearNuevoCE()` |
-| `CambioEstadoBolsin` | fechaHoraInicio, fechaHoraFin, estado, empleado | `sosActual()`, `sosEnviado()`, `setFechaHoraFin()` |
+| `CambioEstadoBolsin` | bolsinNumero (clave), fechaHoraInicio, fechaHoraFin, estado, empleado | `sosActual()`, `sosEnviado()`, `setFechaHoraFin()` |
 | `Remito` (`implements IAgregado`) | numero, fecha, estado, cmOrigen, cmDestino, detalleRemito (sin historial) | `crearIterador()` y `buscarDocumentacion(): String` (paso 6, con `IteradorDetalle`), `aceptar()` |
-| `DetalleRemito` | areaCMDestino, documentacion | `getDocumentacion(): String` (asunto y tipo, paso 6), `getObjetoDocumentacion()` (el objeto, para el DTO), `aceptarDocumentacion()` |
+| `DetalleRemito` | remitoNumero y documentacionNumero (clave), areaCMDestino, documentacion | `getDocumentacion(): String` (asunto y tipo, paso 6), `getObjetoDocumentacion()` (el objeto, para el DTO), `aceptarDocumentacion()` |
 | `Documentacion` | numero, fechaPase, asunto, descripcion, estado, tipoDocumento, cambiosEstado | `sosEnviado()` (por historial), `esRecibidaYAceptada()` (transición), `crearNuevoCE()`, `mostrarTipoDocumentacion()` |
-| `CambioEstadoDocumentacion` | fechaHoraInicio, fechaHoraFin, estado, empleado | `sosActual()`, `sosEnviado()`, `setFechaHoraFin()` |
+| `CambioEstadoDocumentacion` | documentacionNumero (clave), fechaHoraInicio, fechaHoraFin, estado, empleado | `sosActual()`, `sosEnviado()`, `setFechaHoraFin()` |
 | `TipoDocumento` | nombre, descripcion | — |
 | `ComisionMedica` | codigo, nombre, direccion, email, telefono | — |
 | `Empleado` | nombre, apellido, mail, comisionMedica, usuario | `esTuUsuario()`, `getCM()` |
@@ -85,7 +102,7 @@ El paso 6 ("para cada remito muestra el número y, para cada documentación, el 
 
 - **Recorrido anidado**: `Bolsin.obtenerInformacionRemito()` recorre los remitos con un `IteradorRemito`; por cada uno, `Remito.buscarDocumentacion()` recorre sus detalles con un `IteradorDetalle` propio y le pide a cada `DetalleRemito.getDocumentacion()` (que consulta a su Documentacion y esta a su TipoDocumento).
 - El iterador es una **variable local** del método que lo crea: al terminar el recorrido queda sin referencias (la X del diagrama de secuencia).
-- Las colecciones de las entidades siguen siendo `List` (JPA no mapea arreglos) y se pasan al iterador con `toArray()`. El patrón no cambia el esquema: el atributo `Remito.detalleRemito` se mapea con `@JoinColumn(name = "remito_numero")`, igual que antes.
+- Las colecciones de las entidades siguen siendo `List` (JPA no mapea arreglos) y se pasan al iterador con `toArray()`. El patrón no cambia el esquema: el atributo `Remito.detalleRemito` se mapea con `@JoinColumn(name = "remito_numero")`.
 - La API devuelve el texto en `informacionRemito` (`POST /api/recepcion/seleccion/{n}`, método `mostrarDatosRemito()` de la Pantalla) y el frontend lo muestra con `DatosRemito.tsx` en el panel del bolsín seleccionado. El modal de recepción exitosa sigue usando los DTO (estados nuevos de remitos y documentación).
 - Se usa **solo en el paso 6** (lo acordado con el tutor); los demás recorridos (paso 3, paso 11, estados) siguen con `for` sobre `List`.
 - En los datos de prueba el remito 500 tiene 3 documentaciones (un `DetalleRemito` por cada una), así el loop Detalles da varias vueltas.
@@ -121,8 +138,8 @@ backend/
     │   ├── Presentation/Api/          (PantallaRegistrarRecepcionBolsin, errores)
     │   ├── Dto/                       (records de la API y cuerpos de los POST)
     │   ├── Gestores/                  (CU 28 y CU 29)
-    │   ├── Repositories/              (clases con EntityManager)
-    │   ├── Domain/Entities/           (entidades JPA)
+    │   ├── Repositories/              (interfaces I…Repository que extienden JpaRepository)
+    │   ├── Domain/Entities/           (entidades JPA y las clases de clave XxxId)
     │   └── Domain/Iterator/           (patrón Iterator: IIterador, IAgregado, IteradorRemito, IteradorDetalle)
     ├── main/resources/application.properties
     └── test/                          (RecepcionBolsinFlujoTest, tests unitarios de Domain/Iterator y

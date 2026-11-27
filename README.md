@@ -56,7 +56,7 @@ Abrí http://localhost:5173. En desarrollo Vite redirige `/api` al backend, así
 
 Cada bolsín se envió un día distinto (entre 2 y 8 días antes de cargar los datos).
 
-> **Si ya tenías la base creada** (de antes de estos datos), borrá `backend/db/` para que se carguen los datos de prueba nuevos: el backend solo los carga cuando la base está vacía. Ver [Cómo reiniciar los datos de prueba](#cómo-reiniciar-los-datos-de-prueba).
+> **Si ya tenías la base creada** (de antes de estos datos o de las claves sin id), borrá `backend/db/` para que se carguen los datos de prueba nuevos: el backend solo los carga cuando la base está vacía, y Hibernate no migra las claves de una base vieja. Ver [Cómo reiniciar los datos de prueba](#cómo-reiniciar-los-datos-de-prueba).
 
 ## Cómo recorrer el CU 28 en la pantalla
 
@@ -109,7 +109,7 @@ cd backend
 mvn test
 ```
 
-Corre `RecepcionBolsinFlujoTest`, que recorre el CU 28 completo por los endpoints de la Pantalla (iniciar, selección con el texto del Iterator, opción —las no implementadas responden 501— y confirmación con la opción 1, con la notificación del CU 29) y el historial de estados. El test 12 usa las estadísticas de Hibernate para verificar que, después de iniciar el CU, la selección y la opción no ejecutan ninguna sentencia SQL y la confirmación ninguna consulta del Gestor. Usa una base H2 **en memoria**, así que no toca los datos de `backend/db/`.
+Corre `RecepcionBolsinFlujoTest`, que recorre el CU 28 completo por los endpoints de la Pantalla (iniciar, selección con el texto del Iterator, opción —las no implementadas responden 501— y confirmación con la opción 1, con la notificación del CU 29) y el historial de estados. El test 12 usa las estadísticas de Hibernate para verificar que, después de iniciar el CU, la selección y la opción no ejecutan ninguna sentencia SQL y la confirmación ninguna consulta del Gestor (solo los SELECT internos del `save()`). Usa una base H2 **en memoria**, así que no toca los datos de `backend/db/`.
 
 También corre los tests unitarios del patrón Iterator del paso 6, sin base ni Spring: `IteradorRemitoTest` e `IteradorDetalleTest` (orden, fin del recorrido, `primero()` reinicia, colección vacía) y `RecorridoIteratorTest` (recorrido anidado Bolsín → Remito → Detalle y el texto que arma).
 
