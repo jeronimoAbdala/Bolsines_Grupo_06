@@ -153,11 +153,9 @@ class RecepcionBolsinFlujoTest {
     @Order(7)
     void paso11_historialDelBolsinConElEmpleadoResponsable() {
         List<Map<String, Object>> cambios = jdbc.queryForList("""
-                select e.nombre as estado, ce.fecha_hora_inicio as inicio, ce.fecha_hora_fin as fin,
-                       emp.nombre || ' ' || emp.apellido as responsable
+                select ce.estado_nombre as estado, ce.fecha_hora_inicio as inicio, ce.fecha_hora_fin as fin,
+                       ce.empleado_nombre || ' ' || ce.empleado_apellido as responsable
                 from cambio_estado_bolsin ce
-                join estado e on e.id = ce.estado_id
-                join empleado emp on emp.id = ce.empleado_id
                 where ce.bolsin_numero = 1001
                 order by ce.fecha_hora_inicio""");
 
@@ -180,11 +178,9 @@ class RecepcionBolsinFlujoTest {
         // Documentaciones del 1001: 1, 2 y 3 (remito 500) y 4 (remito 501).
         for (int doc : new int[]{1, 2, 3, 4}) {
             List<Map<String, Object>> cambios = jdbc.queryForList("""
-                    select e.nombre as estado, ce.fecha_hora_fin as fin,
-                           emp.nombre || ' ' || emp.apellido as responsable
+                    select ce.estado_nombre as estado, ce.fecha_hora_fin as fin,
+                           ce.empleado_nombre || ' ' || ce.empleado_apellido as responsable
                     from cambio_estado_documentacion ce
-                    join estado e on e.id = ce.estado_id
-                    join empleado emp on emp.id = ce.empleado_id
                     where ce.documentacion_numero = ?
                     order by ce.fecha_hora_inicio""", doc);
             assertThat(cambios).hasSize(2);
@@ -195,7 +191,7 @@ class RecepcionBolsinFlujoTest {
             assertThat(cambios.get(1).get("fin")).isNull();
         }
         assertThat(jdbc.queryForList("""
-                select e.nombre from remito r join estado e on e.id = r.estado_id
+                select r.estado_nombre from remito r
                 where r.bolsin_numero = 1001""", String.class)).containsOnly("RecibidoYAceptado");
         // El 1002 no se toco (su documentacion es la 5).
         assertThat(estadoDelBolsin(1002)).isEqualTo("Enviado");
@@ -240,11 +236,9 @@ class RecepcionBolsinFlujoTest {
     void datosDePrueba_bolsin1007YaRecibidoConHistorialCoherente() {
         // Lo arma CargadorDatosDePrueba con Bolsin.recibir(), la misma logica del paso 11.
         List<Map<String, Object>> cambios = jdbc.queryForList("""
-                select e.nombre as estado, ce.fecha_hora_inicio as inicio, ce.fecha_hora_fin as fin,
-                       emp.nombre || ' ' || emp.apellido as responsable
+                select ce.estado_nombre as estado, ce.fecha_hora_inicio as inicio, ce.fecha_hora_fin as fin,
+                       ce.empleado_nombre || ' ' || ce.empleado_apellido as responsable
                 from cambio_estado_bolsin ce
-                join estado e on e.id = ce.estado_id
-                join empleado emp on emp.id = ce.empleado_id
                 where ce.bolsin_numero = 1007
                 order by ce.fecha_hora_inicio""");
         assertThat(cambios).hasSize(2);
@@ -257,14 +251,12 @@ class RecepcionBolsinFlujoTest {
         assertThat(estadoDelBolsin(1007)).isEqualTo("RecibidoEnCMDestino");
 
         assertThat(jdbc.queryForObject("""
-                select e.nombre from remito r join estado e on e.id = r.estado_id
+                select r.estado_nombre from remito r
                 where r.numero = 508""", String.class)).isEqualTo("RecibidoYAceptado");
         List<Map<String, Object>> cambiosDoc = jdbc.queryForList("""
-                select e.nombre as estado, ce.fecha_hora_fin as fin,
-                       emp.nombre || ' ' || emp.apellido as responsable
+                select ce.estado_nombre as estado, ce.fecha_hora_fin as fin,
+                       ce.empleado_nombre || ' ' || ce.empleado_apellido as responsable
                 from cambio_estado_documentacion ce
-                join estado e on e.id = ce.estado_id
-                join empleado emp on emp.id = ce.empleado_id
                 where ce.documentacion_numero = 15
                 order by ce.fecha_hora_inicio""");
         assertThat(cambiosDoc).hasSize(2);
@@ -300,7 +292,7 @@ class RecepcionBolsinFlujoTest {
 
     private String estadoDelBolsin(int numero) {
         return jdbc.queryForObject(
-                "select e.nombre from bolsin b join estado e on e.id = b.estado_id where b.numero = ?",
+                "select estado_nombre from bolsin where numero = ?",
                 String.class, numero);
     }
 }

@@ -5,6 +5,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinColumns;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
@@ -38,7 +39,10 @@ public class Remito implements Serializable, IAgregado {
     private LocalDate fecha;
 
     @ManyToOne(optional = false)
-    @JoinColumn(name = "estado_id", nullable = false)
+    @JoinColumns({
+            @JoinColumn(name = "estado_ambito", referencedColumnName = "ambito", nullable = false),
+            @JoinColumn(name = "estado_nombre", referencedColumnName = "nombre", nullable = false)
+    })
     private Estado estado;
 
     @ManyToOne(optional = false)
@@ -52,12 +56,13 @@ public class Remito implements Serializable, IAgregado {
     /**
      * Composicion Remito -> DetalleRemito (unidireccional). ALL: los detalles viven y mueren con el remito.
      * La FK remito_numero queda en la tabla detalle_remito. LAZY (default de @OneToMany).
+     * Es parte de la clave del detalle y la escribe el detalle, por eso la lista no la inserta ni la actualiza.
      * El atributo se llama como en el diagrama de clases (detalleRemito); la columna no depende
      * de ese nombre: la fija @JoinColumn.
      */
     @OneToMany(cascade = CascadeType.ALL)
-    @JoinColumn(name = "remito_numero", nullable = false)
-    @OrderBy("id")
+    @JoinColumn(name = "remito_numero", insertable = false, updatable = false)
+    @OrderBy("documentacionNumero")
     private List<DetalleRemito> detalleRemito = new ArrayList<>();
 
     /** Requerido por JPA. */

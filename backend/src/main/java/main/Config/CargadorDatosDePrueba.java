@@ -126,22 +126,22 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         //    El remito 500 tiene 3 documentaciones de tipos distintos: en el paso 6 el loop Detalles del Iterator da 3 vueltas.
         Bolsin b1001 = bolsin(1001, "PREC-001", 2.5, buenosAires, cordoba, bolEnviado, envio, maria);
         Remito r500 = remito(500, buenosAires, cordoba, remEnviado, envio);
-        r500.agregarDetalle(new DetalleRemito(documentacion(1, "Expediente-cardiológico",
+        r500.agregarDetalle(new DetalleRemito(r500.getNumero(), documentacion(1, "Expediente-cardiológico",
                 "Historia clínica del paciente X", expediente, docEnBolsinEnviado, envio, maria)));
-        r500.agregarDetalle(new DetalleRemito(documentacion(2, "Informe-electrocardiograma",
+        r500.agregarDetalle(new DetalleRemito(r500.getNumero(), documentacion(2, "Informe-electrocardiograma",
                 "Electrocardiograma y ecocardiograma", informe, docEnBolsinEnviado, envio, maria)));
-        r500.agregarDetalle(new DetalleRemito(documentacion(3, "Certificado-de-aptitud",
+        r500.agregarDetalle(new DetalleRemito(r500.getNumero(), documentacion(3, "Certificado-de-aptitud",
                 "Certificado de aptitud laboral", certificado, docEnBolsinEnviado, envio, maria)));
         b1001.agregarRemito(r500);
         Remito r501 = remito(501, buenosAires, cordoba, remEnviado, envio);
-        r501.agregarDetalle(new DetalleRemito(documentacion(4, "Estudios-complementarios",
+        r501.agregarDetalle(new DetalleRemito(r501.getNumero(), documentacion(4, "Estudios-complementarios",
                 "Radiografías y análisis", expediente, docEnBolsinEnviado, envio, maria)));
         b1001.agregarRemito(r501);
         bolsinRepository.guardar(b1001);
 
         Bolsin b1002 = bolsin(1002, "PREC-002", 1.2, buenosAires, cordoba, bolEnviado, envio, maria);
         Remito r502 = remito(502, buenosAires, cordoba, remEnviado, envio);
-        r502.agregarDetalle(new DetalleRemito(documentacion(5, "Turno-derivación",
+        r502.agregarDetalle(new DetalleRemito(r502.getNumero(), documentacion(5, "Turno-derivación",
                 "Documentación para derivación", expediente, docEnBolsinEnviado, envio, maria)));
         b1002.agregarRemito(r502);
         bolsinRepository.guardar(b1002);
@@ -151,7 +151,7 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         LocalDateTime envio1003 = LocalDateTime.now().minusDays(3);
         Bolsin b1003 = bolsin(1003, "PREC-003", 0.8, rosario, cordoba, bolEnviado, envio1003, lucia);
         Remito r503 = remito(503, rosario, cordoba, remEnviado, envio1003);
-        r503.agregarDetalle(new DetalleRemito(documentacion(6, "Dictamen-de-incapacidad",
+        r503.agregarDetalle(new DetalleRemito(r503.getNumero(), documentacion(6, "Dictamen-de-incapacidad",
                 "Dictamen de la junta médica por incapacidad laboral", expediente, docEnBolsinEnviado, envio1003, lucia)));
         b1003.agregarRemito(r503);
         bolsinRepository.guardar(b1003);
@@ -160,13 +160,13 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         LocalDateTime envio1004 = LocalDateTime.now().minusDays(4);
         Bolsin b1004 = bolsin(1004, "PREC-004", 3.1, mendoza, cordoba, bolEnviado, envio1004, martin);
         Remito r504 = remito(504, mendoza, cordoba, remEnviado, envio1004);
-        r504.agregarDetalle(new DetalleRemito(documentacion(7, "Informe-traumatológico",
+        r504.agregarDetalle(new DetalleRemito(r504.getNumero(), documentacion(7, "Informe-traumatológico",
                 "Evaluación traumatológica posterior a accidente laboral", informe, docEnBolsinEnviado, envio1004, martin)));
-        r504.agregarDetalle(new DetalleRemito(documentacion(8, "Certificado-de-alta-médica",
+        r504.agregarDetalle(new DetalleRemito(r504.getNumero(), documentacion(8, "Certificado-de-alta-médica",
                 "Alta médica con reincorporación al puesto de trabajo", certificado, docEnBolsinEnviado, envio1004, martin)));
         b1004.agregarRemito(r504);
         Remito r505 = remito(505, mendoza, cordoba, remEnviado, envio1004);
-        r505.agregarDetalle(new DetalleRemito(documentacion(9, "Historia-clínica-laboral",
+        r505.agregarDetalle(new DetalleRemito(r505.getNumero(), documentacion(9, "Historia-clínica-laboral",
                 "Antecedentes médicos y laborales del trabajador", expediente, docEnBolsinEnviado, envio1004, martin)));
         b1004.agregarRemito(r505);
         bolsinRepository.guardar(b1004);
@@ -175,13 +175,13 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         LocalDateTime envio1005 = LocalDateTime.now().minusDays(5);
         Bolsin b1005 = bolsin(1005, "PREC-005", 2.0, tucuman, cordoba, bolEnviado, envio1005, sofia);
         Remito r506 = remito(506, tucuman, cordoba, remEnviado, envio1005);
-        r506.agregarDetalle(new DetalleRemito(documentacion(10, "Reclamo-enfermedad-profesional",
+        r506.agregarDetalle(new DetalleRemito(r506.getNumero(), documentacion(10, "Reclamo-enfermedad-profesional",
                 "Reclamo ante la ART por enfermedad profesional", expediente, docEnBolsinEnviado, envio1005, sofia)));
-        r506.agregarDetalle(new DetalleRemito(documentacion(11, "Informe-psicológico",
+        r506.agregarDetalle(new DetalleRemito(r506.getNumero(), documentacion(11, "Informe-psicológico",
                 "Evaluación psicológica del trabajador", informe, docEnBolsinEnviado, envio1005, sofia)));
-        r506.agregarDetalle(new DetalleRemito(documentacion(12, "Certificado-de-reposo",
+        r506.agregarDetalle(new DetalleRemito(r506.getNumero(), documentacion(12, "Certificado-de-reposo",
                 "Reposo laboral indicado por el médico tratante", certificado, docEnBolsinEnviado, envio1005, sofia)));
-        r506.agregarDetalle(new DetalleRemito(documentacion(13, "Constancia-de-turno-junta-médica",
+        r506.agregarDetalle(new DetalleRemito(r506.getNumero(), documentacion(13, "Constancia-de-turno-junta-médica",
                 "Constancia del turno asignado para la junta médica", otro, docEnBolsinEnviado, envio1005, sofia)));
         b1005.agregarRemito(r506);
         bolsinRepository.guardar(b1005);
@@ -191,7 +191,7 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         LocalDateTime envio1006 = LocalDateTime.now().minusDays(6);
         Bolsin b1006 = bolsin(1006, "PREC-006", 1.5, mendoza, buenosAires, bolEnviado, envio1006, martin);
         Remito r507 = remito(507, mendoza, buenosAires, remEnviado, envio1006);
-        r507.agregarDetalle(new DetalleRemito(documentacion(14, "Informe-audiométrico",
+        r507.agregarDetalle(new DetalleRemito(r507.getNumero(), documentacion(14, "Informe-audiométrico",
                 "Audiometría por hipoacusia laboral", informe, docEnBolsinEnviado, envio1006, martin)));
         b1006.agregarRemito(r507);
         bolsinRepository.guardar(b1006);
@@ -201,7 +201,7 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         LocalDateTime envio1007 = LocalDateTime.now().minusDays(8);
         Bolsin b1007 = bolsin(1007, "PREC-007", 0.9, rosario, cordoba, bolEnviado, envio1007, lucia);
         Remito r508 = remito(508, rosario, cordoba, remEnviado, envio1007);
-        r508.agregarDetalle(new DetalleRemito(documentacion(15, "Certificado-de-discapacidad",
+        r508.agregarDetalle(new DetalleRemito(r508.getNumero(), documentacion(15, "Certificado-de-discapacidad",
                 "Certificado único de discapacidad", certificado, docEnBolsinEnviado, envio1007, lucia)));
         b1007.agregarRemito(r508);
         b1007.recibir(bolRecibidoEnCMDestino, remRecibidoYAceptado, docRecibidaYAceptada, jero, envio1007.plusDays(1));
