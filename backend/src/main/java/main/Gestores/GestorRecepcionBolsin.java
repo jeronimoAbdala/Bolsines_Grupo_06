@@ -6,9 +6,9 @@ import main.Dto.BolsinEnviadoDto;
 import main.Dto.ComisionMedicaDto;
 import main.Dto.RecepcionRegistradaDto;
 import main.Dto.UsuarioDto;
-import main.Repositories.BolsinRepository;
-import main.Repositories.EmpleadoRepository;
-import main.Repositories.EstadoRepository;
+import main.Repositories.IBolsinRepository;
+import main.Repositories.IEmpleadoRepository;
+import main.Repositories.IEstadoRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -19,9 +19,9 @@ import java.util.List;
 @Service
 public class GestorRecepcionBolsin {
 
-    private final BolsinRepository bolsinRepository;
-    private final EmpleadoRepository empleadoRepository;
-    private final EstadoRepository estadoRepository;
+    private final IBolsinRepository bolsinRepository;
+    private final IEmpleadoRepository empleadoRepository;
+    private final IEstadoRepository estadoRepository;
     private final GestorNotificarRecepcionBolsin gestorNotificarRecepcionBolsin;
 
     private Sesion sesionActual;
@@ -46,9 +46,9 @@ public class GestorRecepcionBolsin {
     /** Resultado del CU 29 (llamarCU29()). */
     private boolean notificacionEnviada;
 
-    public GestorRecepcionBolsin(BolsinRepository bolsinRepository,
-                                 EmpleadoRepository empleadoRepository,
-                                 EstadoRepository estadoRepository,
+    public GestorRecepcionBolsin(IBolsinRepository bolsinRepository,
+                                 IEmpleadoRepository empleadoRepository,
+                                 IEstadoRepository estadoRepository,
                                  GestorNotificarRecepcionBolsin gestorNotificarRecepcionBolsin) {
         this.bolsinRepository = bolsinRepository;
         this.empleadoRepository = empleadoRepository;
@@ -70,10 +70,11 @@ public class GestorRecepcionBolsin {
     }
 
     // Unicas lecturas de la base del CU: empleados, bolsines y estados; despues todo es en memoria.
+    // findAll() de los bolsines ya trae remitos, detalles y cambios de estado (EAGER en las entidades).
     private void cargarDatos() {
-        this.empleados = empleadoRepository.obtenerTodos();
-        this.bolsines = bolsinRepository.obtenerTodos();
-        this.estados = estadoRepository.obtenerTodos();
+        this.empleados = empleadoRepository.findAll();
+        this.bolsines = bolsinRepository.findAll();
+        this.estados = estadoRepository.findAll();
     }
 
     /**
@@ -147,7 +148,7 @@ public class GestorRecepcionBolsin {
         getFechaYHoraActual();
         bolsinSeleccionado.recibir(estadoRecibidoEnCMDestino, estadoRecibidoYAceptado,
                 estadoRecibidaYAceptada, empleadoLogueado, fechaHoraActual);
-        bolsinRepository.guardar(bolsinSeleccionado);   // unica escritura del CU
+        bolsinRepository.save(bolsinSeleccionado);   // unica escritura del CU (las cascadas guardan el resto)
         llamarCU29();
         RecepcionRegistradaDto recepcion = new RecepcionRegistradaDto(BolsinDto.de(bolsinSeleccionado), notificacionEnviada);
         finCU();

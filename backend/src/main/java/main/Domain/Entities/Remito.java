@@ -3,8 +3,10 @@ package main.Domain.Entities;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinColumns;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
@@ -12,6 +14,8 @@ import jakarta.persistence.Table;
 import main.Domain.Iterator.IAgregado;
 import main.Domain.Iterator.IIterador;
 import main.Domain.Iterator.IteradorDetalle;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.io.Serializable;
 import java.time.LocalDate;
@@ -38,7 +42,10 @@ public class Remito implements Serializable, IAgregado {
     private LocalDate fecha;
 
     @ManyToOne(optional = false)
-    @JoinColumn(name = "estado_id", nullable = false)
+    @JoinColumns({
+            @JoinColumn(name = "estado_ambito", referencedColumnName = "ambito", nullable = false),
+            @JoinColumn(name = "estado_nombre", referencedColumnName = "nombre", nullable = false)
+    })
     private Estado estado;
 
     @ManyToOne(optional = false)
@@ -51,13 +58,16 @@ public class Remito implements Serializable, IAgregado {
 
     /**
      * Composicion Remito -> DetalleRemito (unidireccional). ALL: los detalles viven y mueren con el remito.
-     * La FK remito_numero queda en la tabla detalle_remito. LAZY (default de @OneToMany).
+     * EAGER + SUBSELECT: viene cargado con el bolsin de findAll() (lo usa el Iterator del paso 6).
+     * La FK remito_numero queda en la tabla detalle_remito.
+     * Es parte de la clave del detalle y la escribe el detalle, por eso la lista no la inserta ni la actualiza.
      * El atributo se llama como en el diagrama de clases (detalleRemito); la columna no depende
      * de ese nombre: la fija @JoinColumn.
      */
-    @OneToMany(cascade = CascadeType.ALL)
-    @JoinColumn(name = "remito_numero", nullable = false)
-    @OrderBy("id")
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
+    @JoinColumn(name = "remito_numero", insertable = false, updatable = false)
+    @OrderBy("documentacionNumero")
     private List<DetalleRemito> detalleRemito = new ArrayList<>();
 
     /** Requerido por JPA. */

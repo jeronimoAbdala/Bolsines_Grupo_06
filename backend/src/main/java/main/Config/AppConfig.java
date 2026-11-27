@@ -7,8 +7,8 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * Configuracion de Spring. Los repositorios (@Repository) y el Gestor (@Service) los crea Spring:
- * los repositorios reciben su EntityManager y el Gestor los repositorios por constructor.
+ * Configuracion de Spring. Los repositorios (interfaces @Repository que extienden JpaRepository) los
+ * implementa Spring Data; el Gestor (@Service) lo crea Spring y le pasa los repositorios por constructor.
  */
 @Configuration
 public class AppConfig {

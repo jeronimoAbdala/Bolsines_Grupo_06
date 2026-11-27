@@ -24,10 +24,10 @@ class RecorridoIteratorTest {
     void bolsinConRemitosYDocumentaciones_armaElTextoDelPaso6EnOrden() {
         Bolsin bolsin = bolsin(1001);
         Remito r500 = remito(500);
-        r500.agregarDetalle(detalle(1, "Expediente-cardiológico", expediente));
-        r500.agregarDetalle(detalle(2, "Informe de alta", informe));
+        r500.agregarDetalle(detalle(r500.getNumero(), 1, "Expediente-cardiológico", expediente));
+        r500.agregarDetalle(detalle(r500.getNumero(), 2, "Informe de alta", informe));
         Remito r501 = remito(501);
-        r501.agregarDetalle(detalle(3, "Estudios-complementarios", expediente));
+        r501.agregarDetalle(detalle(r501.getNumero(), 3, "Estudios-complementarios", expediente));
         bolsin.agregarRemito(r500);
         bolsin.agregarRemito(r501);
 
@@ -49,7 +49,7 @@ class RecorridoIteratorTest {
         Bolsin bolsin = bolsin(1004);
         Remito r503 = remito(503);
         Remito r504 = remito(504);
-        r504.agregarDetalle(detalle(4, "Turno-derivación", expediente));
+        r504.agregarDetalle(detalle(r504.getNumero(), 4, "Turno-derivación", expediente));
         bolsin.agregarRemito(r503);
         bolsin.agregarRemito(r504);
 
@@ -64,7 +64,7 @@ class RecorridoIteratorTest {
     void cadaLlamadaCreaIteradoresNuevos_mismoResultado() {
         Bolsin bolsin = bolsin(1005);
         Remito r505 = remito(505);
-        r505.agregarDetalle(detalle(5, "Asunto 5", informe));
+        r505.agregarDetalle(detalle(r505.getNumero(), 5, "Asunto 5", informe));
         bolsin.agregarRemito(r505);
 
         String primera = bolsin.obtenerInformacionRemito();
@@ -75,7 +75,7 @@ class RecorridoIteratorTest {
 
     @Test
     void detalleRemito_getDocumentacionDevuelveAsuntoYTipo() {
-        assertThat(detalle(6, "Historia clínica", informe).getDocumentacion())
+        assertThat(detalle(505, 6, "Historia clínica", informe).getDocumentacion())
                 .isEqualTo("Asunto: Historia clínica | Tipo: INFORME");
     }
 
@@ -87,7 +87,7 @@ class RecorridoIteratorTest {
         return new Remito(numero, LocalDate.now(), remEnviado, buenosAires, cordoba);
     }
 
-    private DetalleRemito detalle(int numeroDoc, String asunto, TipoDocumento tipo) {
-        return new DetalleRemito(new Documentacion(numeroDoc, asunto, "", docEnBolsinEnviado, tipo));
+    private DetalleRemito detalle(int numeroRemito, int numeroDoc, String asunto, TipoDocumento tipo) {
+        return new DetalleRemito(numeroRemito, new Documentacion(numeroDoc, asunto, "", docEnBolsinEnviado, tipo));
     }
 }

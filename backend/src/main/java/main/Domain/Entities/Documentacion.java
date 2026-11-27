@@ -3,12 +3,16 @@ package main.Domain.Entities;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinColumns;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.io.Serializable;
 import java.time.LocalDate;
@@ -38,21 +42,27 @@ public class Documentacion implements Serializable {
 
     /** Estado actual (atributo). Multiplicidad 1. Sin cascada: Estado es un catalogo. */
     @ManyToOne(optional = false)
-    @JoinColumn(name = "estado_id", nullable = false)
+    @JoinColumns({
+            @JoinColumn(name = "estado_ambito", referencedColumnName = "ambito", nullable = false),
+            @JoinColumn(name = "estado_nombre", referencedColumnName = "nombre", nullable = false)
+    })
     private Estado estado;
 
     /** Multiplicidad 1. Sin cascada: TipoDocumento es un catalogo. */
     @ManyToOne(optional = false)
-    @JoinColumn(name = "tipo_documento_id", nullable = false)
+    @JoinColumn(name = "tipo_documento_nombre", nullable = false)
     private TipoDocumento tipoDocumento;
 
     /**
      * Historial de cambios de estado (unidireccional: el cambio no conoce a su documentacion).
-     * ALL: el historial vive y muere con la documentacion. LAZY (default de @OneToMany).
-     * La FK documentacion_numero queda en la tabla cambio_estado_documentacion.
+     * ALL: el historial vive y muere con la documentacion.
+     * EAGER + SUBSELECT: viene cargado con el bolsin de findAll() (lo usa esRecibidaYAceptada en el paso 11).
+     * La FK documentacion_numero queda en la tabla cambio_estado_documentacion; es parte de la clave
+     * del cambio y la escribe el cambio, por eso la lista no la inserta ni la actualiza.
      */
-    @OneToMany(cascade = CascadeType.ALL)
-    @JoinColumn(name = "documentacion_numero", nullable = false)
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
+    @JoinColumn(name = "documentacion_numero", insertable = false, updatable = false)
     @OrderBy("fechaHoraInicio")
     private List<CambioEstadoDocumentacion> cambiosEstado = new ArrayList<>();
 
@@ -136,7 +146,7 @@ public class Documentacion implements Serializable {
     }
 
     public CambioEstadoDocumentacion crearNuevoCE(Estado estado, LocalDateTime fechaHora, Empleado empleado) {
-        CambioEstadoDocumentacion cambio = new CambioEstadoDocumentacion(estado, fechaHora, empleado);
+        CambioEstadoDocumentacion cambio = new CambioEstadoDocumentacion(numero, estado, fechaHora, empleado);
         agregarCambioEstado(cambio);
         return cambio;
     }

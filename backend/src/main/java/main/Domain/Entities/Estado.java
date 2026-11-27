@@ -2,28 +2,25 @@ package main.Domain.Entities;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 
 import java.io.Serializable;
 
+/** Clave natural ambito + nombre (EstadoId): el nombre solo no alcanza ("Enviado" es de bolsin y de remito). */
 @Entity
-@Table(name = "estado",
-        uniqueConstraints = @UniqueConstraint(name = "uk_estado_ambito_nombre", columnNames = {"ambito", "nombre"}))
+@Table(name = "estado")
+@IdClass(EstadoId.class)
 public class Estado implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
     @Column(name = "ambito", nullable = false)
     private String ambito;
 
+    @Id
     @Column(name = "nombre", nullable = false)
     private String nombre;
 

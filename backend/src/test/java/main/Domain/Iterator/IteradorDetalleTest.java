@@ -1,6 +1,7 @@
 package main.Domain.Iterator;
 
 import main.Domain.Entities.DetalleRemito;
+import main.Domain.Entities.Documentacion;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -10,13 +11,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * IteradorDetalle solo (sin Spring ni base): orden, fin del recorrido, primero() reinicia, coleccion vacia.
- * Los detalles se crean en memoria sin documentacion: el iterador no mira sus datos, solo los recorre.
+ * Los detalles se crean en memoria con documentaciones vacias (el detalle toma su numero para la clave):
+ * el iterador no mira sus datos, solo los recorre.
  */
 class IteradorDetalleTest {
 
-    private final DetalleRemito d1 = new DetalleRemito(null, "Area 1");
-    private final DetalleRemito d2 = new DetalleRemito(null, "Area 2");
-    private final DetalleRemito d3 = new DetalleRemito(null, "Area 3");
+    private final DetalleRemito d1 = new DetalleRemito(500, new Documentacion(1, "", "", null, null), "Area 1");
+    private final DetalleRemito d2 = new DetalleRemito(500, new Documentacion(2, "", "", null, null), "Area 2");
+    private final DetalleRemito d3 = new DetalleRemito(500, new Documentacion(3, "", "", null, null), "Area 3");
 
     @Test
     void recorreLosDetallesEnOrden() {

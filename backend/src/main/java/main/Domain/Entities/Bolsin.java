@@ -3,8 +3,10 @@ package main.Domain.Entities;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinColumns;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
@@ -12,6 +14,8 @@ import jakarta.persistence.Table;
 import main.Domain.Iterator.IAgregado;
 import main.Domain.Iterator.IIterador;
 import main.Domain.Iterator.IteradorRemito;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.io.Serializable;
 import java.time.LocalDate;
@@ -44,7 +48,10 @@ public class Bolsin implements Serializable, IAgregado {
 
     /** Estado actual (atributo). Multiplicidad 1. Sin cascada: Estado es un catalogo. */
     @ManyToOne(optional = false)
-    @JoinColumn(name = "estado_id", nullable = false)
+    @JoinColumns({
+            @JoinColumn(name = "estado_ambito", referencedColumnName = "ambito", nullable = false),
+            @JoinColumn(name = "estado_nombre", referencedColumnName = "nombre", nullable = false)
+    })
     private Estado estado;
 
     @ManyToOne(optional = false)
@@ -57,22 +64,27 @@ public class Bolsin implements Serializable, IAgregado {
 
     /**
      * Composicion Bolsin -> Remito (unidireccional: el remito no conoce a su bolsin).
-     * ALL: los remitos viven y mueren con el bolsin. LAZY (default de @OneToMany).
+     * ALL: los remitos viven y mueren con el bolsin.
+     * EAGER + SUBSELECT: findAll() trae los remitos de todos los bolsines con una consulta mas (la usa el
+     * Iterator del paso 6); SUBSELECT evita MultipleBagFetchException con dos List EAGER en la misma entidad.
      * La FK bolsin_numero queda en la tabla remito; NOT NULL porque es composicion (un remito
      * siempre pertenece a un bolsin).
      */
-    @OneToMany(cascade = CascadeType.ALL)
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
     @JoinColumn(name = "bolsin_numero", nullable = false)
     @OrderBy("numero")
     private List<Remito> remitos = new ArrayList<>();
 
     /**
      * Historial de cambios de estado (unidireccional: el cambio no conoce a su bolsin).
-     * ALL: el historial vive y muere con el bolsin. LAZY (default de @OneToMany).
-     * La FK bolsin_numero queda en la tabla cambio_estado_bolsin.
+     * ALL: el historial vive y muere con el bolsin. EAGER + SUBSELECT, como los remitos (lo usan sosEnviado y recibir).
+     * La FK bolsin_numero queda en la tabla cambio_estado_bolsin; es parte de la clave del cambio y la
+     * escribe el cambio, por eso la lista no la inserta ni la actualiza.
      */
-    @OneToMany(cascade = CascadeType.ALL)
-    @JoinColumn(name = "bolsin_numero", nullable = false)
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
+    @JoinColumn(name = "bolsin_numero", insertable = false, updatable = false)
     @OrderBy("fechaHoraInicio")
     private List<CambioEstadoBolsin> cambiosEstado = new ArrayList<>();
 
@@ -178,7 +190,7 @@ public class Bolsin implements Serializable, IAgregado {
     }
 
     public CambioEstadoBolsin crearNuevoCE(Estado estado, LocalDateTime fechaHora, Empleado empleado) {
-        CambioEstadoBolsin cambio = new CambioEstadoBolsin(estado, fechaHora, empleado);
+        CambioEstadoBolsin cambio = new CambioEstadoBolsin(numero, estado, fechaHora, empleado);
         agregarCambioEstado(cambio);
         return cambio;
     }

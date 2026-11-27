@@ -800,3 +800,79 @@ El batch no los reduce (el merge busca cada objeto por su id, de a uno), así qu
 - **Etapa 3 — Docs**: `ARQUITECTURA.md` (capas, Repository, Persistencia, estructura, pendiente), `CASO_DE_USO_RECEPCION.md` (pasos 1, 3, 5, 11 y 12, árboles de los pasos 6 y 10-11, no implementado), `README.md` (tecnología, recorrido, tests, API) y esta sección. Las secciones 1 a 8 no se tocaron (registro histórico).
 - **Ajuste — `cargarDatos()`**: por legibilidad, las tres lecturas pasaron de `opRegistrarRecepcionBolsin()` a un método privado `cargarDatos()`, que `opRegistrarRecepcionBolsin()` llama primero. Sin otros cambios. `mvn test`: 27 tests, 0 fallas.
 - Todos los archivos en CRLF; no se tocó git ni `backend/db/`.
+
+## 10. Respuesta del profesor: repositorios como interfaces y claves sin id
+
+Rama `repositorios-interfaces` (desde `master`). Respuestas del profesor a nuestras consultas:
+
+1. Los id **no** tienen que aparecer en las entidades.
+2. Repositorios: no lo evalúa, pero "si hay una interfaz tiene que haber un service".
+3. `cargarDatos()` trayendo todo y un solo guardado al final, al confirmar: "está perfecto".
+
+Guías: el ejemplo de la cátedra (`java-persistencia`: repositorios `ICampoRepository extends JpaRepository<Campo, String>`, `GestorLaboreos` con `findAll()` en `cargarDatos()` y un solo `save()`, claves naturales sin `@GeneratedValue`, `EmpleadoId` + `@IdClass`, Laboreo con columnas de otras entidades en su clave) y, del Grupo 8, **solo la carga** (`@OneToMany(fetch = FetchType.EAGER)` + `@Fetch(FetchMode.SUBSELECT)`). Del Grupo 8 no se tomaron sus ids (`Integer id`, `@GeneratedValue`) ni su `estadoRepository.findAll()` dentro del paso 11.
+
+No se tocaron el Iterator, la Pantalla ni los diagramas. De la lógica del dominio solo cambió lo que pide la clave: `crearNuevoCE()` le pasa al constructor del cambio el número de su dueño.
+
+### 10.1 Decisiones (aprobadas)
+
+| # | Decisión |
+|---|---|
+| D1 | Repositorios como **interfaces** `@Repository` que extienden `JpaRepository<Entidad, Clave>`, sin código propio, con el prefijo `I` (como la cátedra, el Grupo 8 y nuestros `IAgregado`/`IIterador`): `IBolsinRepository`, `IEmpleadoRepository`, `IEstadoRepository`, `IComisionMedicaRepository`, `ITipoDocumentoRepository`, `IUsuarioRepository`. Se borraron las 6 clases con `EntityManager` de la sección 9 (deja sin efecto D6 de 9.1 y la solución de 9.2) |
+| D2 | `@Repository` en las interfaces, como la cátedra (Spring Data las detecta igual) |
+| D3 | El Gestor (`@Service`) usa `findAll()` en `cargarDatos()` (empleados, bolsines, estados) y un solo `save(bolsinSeleccionado)` en `tomarConfirmacion()`. Sin `findById` ni `Optional` |
+| D4 | `InicioDeSesion`: `usuarioRepository.findById(nombreUsuario).orElse(null)` (lo más simple; está en Config, no en el Gestor) |
+| D5 | `CargadorDatosDePrueba`: `save(...)` y `estadoRepository.findAll().isEmpty()` para saber si la base está vacía |
+| D6 | Sin id técnico ni `@GeneratedValue`: cada entidad con su clave natural (ver 10.2) |
+| D7 | Clases nuevas para las claves compuestas: `EstadoId`, `EmpleadoId`, `CambioEstadoBolsinId`, `CambioEstadoDocumentacionId`, `DetalleRemitoId` (en `Domain/Entities`, solo los campos, `equals` y `hashCode`) |
+| D8 | Cambios de estado: clave = número del dueño + `fechaHoraInicio`. El número lo recibe el constructor: `new CambioEstadoBolsin(numero, …)` en `Bolsin.crearNuevoCE()` y `new CambioEstadoDocumentacion(numero, …)` en `Documentacion.crearNuevoCE()`. `DetalleRemito(numeroRemito, documentacion[, area])` copia `documentacion.getNumero()` |
+| D9 | `Remito.detalleRemito`: `@OrderBy("documentacionNumero")` en lugar de `@OrderBy("id")` (con los datos de prueba, el mismo orden) |
+| D10 | Listas que usan el Iterator y `recibir()` con `fetch = EAGER` + `@Fetch(FetchMode.SUBSELECT)` (del Grupo 8): `findAll()` trae todo y no hace falta volver a leer |
+| D11 | `hibernate.default_batch_fetch_size=16`: baja `/iniciar` de 24 a 11 sentencias (10.3). Deja sin efecto R1 de 9.1: el batch sigue sin reducir los SELECT del merge, pero ahora sí reduce la carga |
+| D12 | El diagrama de clases no cambia: los campos de clave que guardan el número del dueño (`bolsinNumero`, `documentacionNumero`, `remitoNumero`) son detalle de persistencia, como `empleadoNombre` en el Laboreo de la cátedra |
+
+### 10.2 Claves
+
+| Entidad | Antes | Clave natural | Clase |
+|---|---|---|---|
+| `Estado` | `Long id` + unique (ambito, nombre) | `ambito` + `nombre` (el nombre solo no alcanza: "Enviado" es de bolsín y de remito) | `EstadoId` |
+| `TipoDocumento` | `Long id` + unique (nombre) | `nombre` | — |
+| `Empleado` | `Long id` | `nombre` + `apellido`, como la cátedra | `EmpleadoId` |
+| `CambioEstadoBolsin` | `Long id` | `bolsin_numero` + `fecha_hora_inicio` | `CambioEstadoBolsinId` |
+| `CambioEstadoDocumentacion` | `Long id` | `documentacion_numero` + `fecha_hora_inicio` | `CambioEstadoDocumentacionId` |
+| `DetalleRemito` | `Long id` | `remito_numero` + `documentacion_numero` (una documentación figura una vez por remito) | `DetalleRemitoId` |
+| `Bolsin`, `Remito`, `Documentacion`, `ComisionMedica`, `Usuario` | ya tenían clave natural | sin cambios | — |
+
+- **Por qué el dueño en la clave de los cambios**: al recibir, varias documentaciones reciben un cambio con la misma fecha/hora, estado y empleado; las distingue el número de su documentación. Un mismo bolsín o documentación no tiene dos cambios que empiecen en el mismo instante. `fechaHoraInicio` nunca se modifica (solo `fechaHoraFin`).
+- **Mapeo, como el Laboreo de la cátedra**: el número del dueño es un `@Id` simple del hijo (`@Column(name = "bolsin_numero") int bolsinNumero`); el hijo no conoce a su dueño (la navegabilidad del diagrama se mantiene). Esa columna la escribe el hijo, por eso la `@JoinColumn` del `@OneToMany` del dueño es `insertable = false, updatable = false`. En `DetalleRemito`, `documentacionNumero` es `@Id` y la `@ManyToOne documentacion` usa `insertable = false, updatable = false`.
+- **FK compuestas**: las referencias a `Estado` pasan a `@JoinColumns` (`estado_ambito`, `estado_nombre`) en bolsín, remito, documentación y los dos cambios; a `Empleado`, `empleado_nombre` + `empleado_apellido`; a `TipoDocumento`, `tipo_documento_nombre`.
+- **`save()` hace `merge`**: con la clave ya puesta, Spring Data no la toma como nueva. En `CargadorDatosDePrueba` las instancias originales se siguen usando como referencia (el merge de cada bolsín las encuentra por su clave).
+- **Esquema**: cambian las PK y las FK y `ddl-auto=update` no las migra: hubo que borrar `backend/db/`.
+
+### 10.3 Carga y mediciones
+
+`Bolsin.remitos`, `Bolsin.cambiosEstado`, `Remito.detalleRemito` y `Documentacion.cambiosEstado` son `@OneToMany(cascade = ALL, fetch = EAGER)` + `@Fetch(FetchMode.SUBSELECT)`. `findAll()` es transaccional por dentro (`SimpleJpaRepository`), así que con `open-in-view=false` todo se carga dentro de esa llamada; la selección, la opción y la confirmación trabajan en memoria. `SUBSELECT` evita la `MultipleBagFetchException` de dos `List` EAGER en la misma entidad. Se borraron los 4 `JOIN FETCH` de la sección 9.3.
+
+Medición (H2 en memoria, mismos datos de prueba, con las estadísticas de Hibernate; un test temporal, ya borrado):
+
+| Paso | Sin `default_batch_fetch_size` | Con `default_batch_fetch_size=16` |
+|---|---|---|
+| `/iniciar` (3 `findAll()`) | 24 sentencias | **11** sentencias |
+| Selección y opción | 0 | 0 |
+| Confirmación del 1003 | 17 (10 SELECT del merge + 2 INSERT + 5 UPDATE) | 17 (igual) |
+| Confirmación del 1001 | 30 (13 SELECT del merge + 5 INSERT + 12 UPDATE) | 30 (igual) |
+
+- El ahorro de `/iniciar` es la carga de las 15 documentaciones de los detalles: sin batch, una por una; con batch, de a 16. Se dejó.
+- Los SELECT del merge pasaron de 8 a 10 (1003) y de 12 a 13 (1001) respecto de 9.3: con EAGER, el merge trae también las listas de cada objeto que relee. Siguen siendo internos de `save()`; el Gestor no hace ninguna consulta en la confirmación.
+
+### 10.4 Tests
+
+- 27 tests. El **test 12 no cambió**: después de `/iniciar`, la selección y la opción ejecutan 0 sentencias SQL y la confirmación 0 consultas del Gestor (solo los SELECT internos del merge de `save()`).
+- `RecepcionBolsinFlujoTest` (tests 7, 8, 11 y `estadoDelBolsin()`): el SQL lee directo `estado_nombre`, `empleado_nombre` y `empleado_apellido` (ahora son las FK), sin joins.
+- `RecorridoIteratorTest`: el helper `detalle(...)` recibe el número de remito. `IteradorDetalleTest`: los detalles se arman con documentaciones vacías (el constructor del detalle toma su número). Las aserciones del Iterator no cambiaron.
+
+### 10.5 Bitácora
+
+- **Etapa 1 — Claves sin id**: `Estado`, `TipoDocumento`, `Empleado`, los dos cambios de estado y `DetalleRemito` con clave natural; 5 clases `XxxId`; FK compuestas; número del dueño en `crearNuevoCE()` y en el constructor de `DetalleRemito`; `CargadorDatosDePrueba` y tests. Se revisó el DDL que genera Hibernate (PK y FK de las 11 tablas). Se borró `backend/db/`. `mvn test`: 27 tests, 0 fallas.
+- **Etapa 2 — Repositorios como interfaces, EAGER + SUBSELECT**: 6 interfaces `I…Repository`; Gestor con `findAll()`/`save()`; `CargadorDatosDePrueba` e `InicioDeSesion` adaptados; listas EAGER + SUBSELECT; medición de `/iniciar` y `default_batch_fetch_size=16`. `mvn clean test`: 27 tests, 0 fallas. Probado en el navegador.
+- **Etapa 3 — Docs**: `ARQUITECTURA.md` (capas, Gestor, Repository, Persistencia, claves, relaciones, entidades, estructura), `CASO_DE_USO_RECEPCION.md` (cadena de clases, pasos 1 y 11, árbol de los pasos 10-11, fecha/hora y clave de los cambios), `README.md` (base vieja, tests) y esta sección. Las secciones 1 a 9 no se tocaron (registro histórico).
+- Todos los archivos en CRLF; no se tocó git (los commits los hace el equipo).
