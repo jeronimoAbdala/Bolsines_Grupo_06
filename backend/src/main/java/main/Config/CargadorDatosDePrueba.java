@@ -9,11 +9,11 @@ import main.Domain.Entities.Estado;
 import main.Domain.Entities.Remito;
 import main.Domain.Entities.TipoDocumento;
 import main.Domain.Entities.Usuario;
-import main.Repositories.BolsinRepository;
-import main.Repositories.ComisionMedicaRepository;
-import main.Repositories.EmpleadoRepository;
-import main.Repositories.EstadoRepository;
-import main.Repositories.TipoDocumentoRepository;
+import main.Repositories.IBolsinRepository;
+import main.Repositories.IComisionMedicaRepository;
+import main.Repositories.IEmpleadoRepository;
+import main.Repositories.IEstadoRepository;
+import main.Repositories.ITipoDocumentoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -34,17 +34,17 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(CargadorDatosDePrueba.class);
 
-    private final EstadoRepository estadoRepository;
-    private final TipoDocumentoRepository tipoDocumentoRepository;
-    private final ComisionMedicaRepository comisionMedicaRepository;
-    private final EmpleadoRepository empleadoRepository;
-    private final BolsinRepository bolsinRepository;
+    private final IEstadoRepository estadoRepository;
+    private final ITipoDocumentoRepository tipoDocumentoRepository;
+    private final IComisionMedicaRepository comisionMedicaRepository;
+    private final IEmpleadoRepository empleadoRepository;
+    private final IBolsinRepository bolsinRepository;
 
-    public CargadorDatosDePrueba(EstadoRepository estadoRepository,
-                                 TipoDocumentoRepository tipoDocumentoRepository,
-                                 ComisionMedicaRepository comisionMedicaRepository,
-                                 EmpleadoRepository empleadoRepository,
-                                 BolsinRepository bolsinRepository) {
+    public CargadorDatosDePrueba(IEstadoRepository estadoRepository,
+                                 ITipoDocumentoRepository tipoDocumentoRepository,
+                                 IComisionMedicaRepository comisionMedicaRepository,
+                                 IEmpleadoRepository empleadoRepository,
+                                 IBolsinRepository bolsinRepository) {
         this.estadoRepository = estadoRepository;
         this.tipoDocumentoRepository = tipoDocumentoRepository;
         this.comisionMedicaRepository = comisionMedicaRepository;
@@ -54,7 +54,7 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (!estadoRepository.obtenerTodos().isEmpty()) {
+        if (!estadoRepository.findAll().isEmpty()) {
             log.info("Datos de prueba: la base ya tiene datos, no se carga nada.");
             return;
         }
@@ -81,40 +81,40 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         TipoDocumento certificado = tipo("CERTIFICADO", "Certificado");
         TipoDocumento otro = tipo("OTRO", "Otro");
 
-        // 3. Comisiones medicas (clave asignada): la misma instancia queda guardada.
+        // 3. Comisiones medicas (clave asignada): se guardan y se siguen usando como referencia.
         ComisionMedica cordoba = new ComisionMedica(
                 1, "Cordoba", "Colon 100", "cm@correo.com", "351-123456");
-        comisionMedicaRepository.guardar(cordoba);
+        comisionMedicaRepository.save(cordoba);
         ComisionMedica buenosAires = new ComisionMedica(
                 2, "Buenos Aires", "Av. 9 de Julio 100", "cmba@correo.com", "11-654321");
-        comisionMedicaRepository.guardar(buenosAires);
+        comisionMedicaRepository.save(buenosAires);
         ComisionMedica rosario = new ComisionMedica(
                 3, "Rosario", "Bv. Oroño 1200", "cmrosario@correo.com", "341-456789");
-        comisionMedicaRepository.guardar(rosario);
+        comisionMedicaRepository.save(rosario);
         ComisionMedica mendoza = new ComisionMedica(
                 4, "Mendoza", "Av. San Martín 1500", "cmmendoza@correo.com", "261-345678");
-        comisionMedicaRepository.guardar(mendoza);
+        comisionMedicaRepository.save(mendoza);
         ComisionMedica tucuman = new ComisionMedica(
                 5, "Tucumán", "Av. Sarmiento 800", "cmtucuman@correo.com", "381-234567");
-        comisionMedicaRepository.guardar(tucuman);
+        comisionMedicaRepository.save(tucuman);
 
         // 4. Empleados con su Usuario (cascada PERSIST Empleado -> Usuario). Jeronimo (jero) es el usuario logueado;
         //    los demas son los responsables de los envios de su CM.
         Empleado jero = new Empleado("Jeronimo", "Abdala", "mail@mail.com",
                 cordoba, new Usuario("jero", "1234"));
-        empleadoRepository.guardar(jero);
+        empleadoRepository.save(jero);
         Empleado maria = new Empleado("María", "López", "mlopez@mail.com",
                 buenosAires, new Usuario("mlopez", "1234"));
-        empleadoRepository.guardar(maria);
+        empleadoRepository.save(maria);
         Empleado lucia = new Empleado("Lucía", "Fernández", "lfernandez@mail.com",
                 rosario, new Usuario("lfernandez", "1234"));
-        empleadoRepository.guardar(lucia);
+        empleadoRepository.save(lucia);
         Empleado martin = new Empleado("Martín", "Gómez", "mgomez@mail.com",
                 mendoza, new Usuario("mgomez", "1234"));
-        empleadoRepository.guardar(martin);
+        empleadoRepository.save(martin);
         Empleado sofia = new Empleado("Sofía", "Ruiz", "sruiz@mail.com",
                 tucuman, new Usuario("sruiz", "1234"));
-        empleadoRepository.guardar(sofia);
+        empleadoRepository.save(sofia);
 
         // 5. Bolsines BA -> Cordoba. Envio 2 dias antes de la carga, a cargo de Maria Lopez (empleada de la CM origen),
         //    para que el historial de cada bolsin y documentacion empiece con un cambio de estado.
@@ -137,14 +137,14 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         r501.agregarDetalle(new DetalleRemito(r501.getNumero(), documentacion(4, "Estudios-complementarios",
                 "Radiografías y análisis", expediente, docEnBolsinEnviado, envio, maria)));
         b1001.agregarRemito(r501);
-        bolsinRepository.guardar(b1001);
+        bolsinRepository.save(b1001);
 
         Bolsin b1002 = bolsin(1002, "PREC-002", 1.2, buenosAires, cordoba, bolEnviado, envio, maria);
         Remito r502 = remito(502, buenosAires, cordoba, remEnviado, envio);
         r502.agregarDetalle(new DetalleRemito(r502.getNumero(), documentacion(5, "Turno-derivación",
                 "Documentación para derivación", expediente, docEnBolsinEnviado, envio, maria)));
         b1002.agregarRemito(r502);
-        bolsinRepository.guardar(b1002);
+        bolsinRepository.save(b1002);
 
         // 6. Mas bolsines pendientes para Cordoba, cada uno enviado otro dia y con distinto contenido
         //    (el Iterator del paso 6 da distinta cantidad de vueltas).
@@ -154,7 +154,7 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         r503.agregarDetalle(new DetalleRemito(r503.getNumero(), documentacion(6, "Dictamen-de-incapacidad",
                 "Dictamen de la junta médica por incapacidad laboral", expediente, docEnBolsinEnviado, envio1003, lucia)));
         b1003.agregarRemito(r503);
-        bolsinRepository.guardar(b1003);
+        bolsinRepository.save(b1003);
 
         //    1004: 2 remitos (2 y 1 documentaciones).
         LocalDateTime envio1004 = LocalDateTime.now().minusDays(4);
@@ -169,7 +169,7 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         r505.agregarDetalle(new DetalleRemito(r505.getNumero(), documentacion(9, "Historia-clínica-laboral",
                 "Antecedentes médicos y laborales del trabajador", expediente, docEnBolsinEnviado, envio1004, martin)));
         b1004.agregarRemito(r505);
-        bolsinRepository.guardar(b1004);
+        bolsinRepository.save(b1004);
 
         //    1005: 1 remito con 4 documentaciones, una de cada tipo.
         LocalDateTime envio1005 = LocalDateTime.now().minusDays(5);
@@ -184,7 +184,7 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         r506.agregarDetalle(new DetalleRemito(r506.getNumero(), documentacion(13, "Constancia-de-turno-junta-médica",
                 "Constancia del turno asignado para la junta médica", otro, docEnBolsinEnviado, envio1005, sofia)));
         b1005.agregarRemito(r506);
-        bolsinRepository.guardar(b1005);
+        bolsinRepository.save(b1005);
 
         // 7. Bolsines que NO aparecen en la lista del paso 3.
         //    1006: enviado a OTRA CM (Buenos Aires): esTuCM("Cordoba") da falso.
@@ -194,7 +194,7 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
         r507.agregarDetalle(new DetalleRemito(r507.getNumero(), documentacion(14, "Informe-audiométrico",
                 "Audiometría por hipoacusia laboral", informe, docEnBolsinEnviado, envio1006, martin)));
         b1006.agregarRemito(r507);
-        bolsinRepository.guardar(b1006);
+        bolsinRepository.save(b1006);
 
         //    1007: YA RECIBIDO en Cordoba: sosEnviado() da falso. El historial lo arma la misma logica
         //    del paso 11 del CU (Bolsin.recibir), a cargo de jero, un dia despues del envio.
@@ -205,22 +205,25 @@ public class CargadorDatosDePrueba implements ApplicationRunner {
                 "Certificado único de discapacidad", certificado, docEnBolsinEnviado, envio1007, lucia)));
         b1007.agregarRemito(r508);
         b1007.recibir(bolRecibidoEnCMDestino, remRecibidoYAceptado, docRecibidaYAceptada, jero, envio1007.plusDays(1));
-        bolsinRepository.guardar(b1007);
+        bolsinRepository.save(b1007);
 
         log.info("Datos de prueba cargados: 13 estados, 4 tipos, 5 CM, 5 empleados, "
                 + "bolsines 1001 a 1007 (9 remitos, 15 documentaciones).");
     }
 
-    /** guardar() hace persist: la misma instancia queda con su id y se puede referenciar. */
+    /**
+     * save() hace merge (la clave natural ya viene puesta): la instancia original se sigue usando como
+     * referencia en los bolsines, y el merge de cada bolsin la encuentra por su clave.
+     */
     private Estado estado(String ambito, String nombre, String descripcion) {
         Estado estado = new Estado(ambito, nombre, descripcion);
-        estadoRepository.guardar(estado);
+        estadoRepository.save(estado);
         return estado;
     }
 
     private TipoDocumento tipo(String nombre, String descripcion) {
         TipoDocumento tipo = new TipoDocumento(nombre, descripcion);
-        tipoDocumentoRepository.guardar(tipo);
+        tipoDocumentoRepository.save(tipo);
         return tipo;
     }
 

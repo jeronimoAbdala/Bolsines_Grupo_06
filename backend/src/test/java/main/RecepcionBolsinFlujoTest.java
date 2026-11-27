@@ -31,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * CU 28 de punta a punta, sin tocar la base de archivo: PantallaRegistrarRecepcionBolsin (REST) -> Gestor
- * -> repositorios (EntityManager) -> Hibernate -> H2 en memoria.
+ * -> repositorios (interfaces JpaRepository) -> Hibernate -> H2 en memoria.
  * Los metodos corren EN ORDEN y comparten la misma base y el mismo Gestor (guarda el estado del CU entre
  * pedidos): primero se verifica el estado inicial, despues se recibe el 1001 y se verifica el historial;
  * al final, que el 1001 ya no este pendiente, el Iterator del 1005 (4 documentaciones) y el historial del 1007,
@@ -278,7 +278,7 @@ class RecepcionBolsinFlujoTest {
         mvc.perform(opcion("{\"opcion\":1}")).andExpect(status().isOk());
         assertThat(estadisticas.getPrepareStatementCount()).isZero();
 
-        // Confirmacion: ninguna consulta del Gestor (los estados se cargaron al iniciar); solo quedan los SELECT internos del merge de guardar().
+        // Confirmacion: ninguna consulta del Gestor (los estados se cargaron al iniciar); solo quedan los SELECT internos del merge de save().
         estadisticas.clear();
         mvc.perform(post(BASE + "/confirmacion")).andExpect(status().isOk());
         assertThat(estadisticas.getQueryExecutionCount()).isZero();

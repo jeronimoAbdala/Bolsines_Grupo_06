@@ -2,7 +2,7 @@ package main.Config;
 
 import main.Domain.Entities.Sesion;
 import main.Domain.Entities.Usuario;
-import main.Repositories.UsuarioRepository;
+import main.Repositories.IUsuarioRepository;
 import main.Gestores.GestorRecepcionBolsin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,11 +22,11 @@ public class InicioDeSesion implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(InicioDeSesion.class);
 
-    private final UsuarioRepository usuarioRepository;
+    private final IUsuarioRepository usuarioRepository;
     private final GestorRecepcionBolsin gestor;
     private final String nombreUsuario;
 
-    public InicioDeSesion(UsuarioRepository usuarioRepository, GestorRecepcionBolsin gestor,
+    public InicioDeSesion(IUsuarioRepository usuarioRepository, GestorRecepcionBolsin gestor,
                           @Value("${bolsines.usuario-logueado}") String nombreUsuario) {
         this.usuarioRepository = usuarioRepository;
         this.gestor = gestor;
@@ -35,7 +35,7 @@ public class InicioDeSesion implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        Usuario usuario = usuarioRepository.buscarPorNombre(nombreUsuario);
+        Usuario usuario = usuarioRepository.findById(nombreUsuario).orElse(null);   // el @Id es el nombre de usuario
         if (usuario == null) {
             log.warn("Sesion: no existe el usuario '{}'; no hay usuario logueado.", nombreUsuario);
             return;
